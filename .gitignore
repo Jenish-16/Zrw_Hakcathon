@@ -7,3 +7,5 @@ build/
 npm-debug.log*
 client/.vite/
 coverage/
+.vercel
+.env*
