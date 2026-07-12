@@ -5,7 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { badRequest, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
-import { notifyMany } from '../services/notify';
+import { notifyMany, getManagerIds } from '../services/notify';
 
 const router = Router();
 router.use(authenticate);
@@ -147,10 +147,10 @@ router.patch(
     const cycle = unwrapMaybe(
       await supabase
         .from('AuditCycle')
-        .select('id, status, assignments:AuditAssignment!AuditAssignment_cycleId_fkey(auditorId)')
+        .select('id, name, status, createdById, assignments:AuditAssignment!AuditAssignment_cycleId_fkey(auditorId)')
         .eq('id', req.params.id)
         .single()
-    ) as { id: string; status: string; assignments: { auditorId: string }[] } | null;
+    ) as { id: string; name: string; status: string; createdById: string; assignments: { auditorId: string }[] } | null;
     if (!cycle) throw notFound('Audit cycle not found');
     if (cycle.status === 'CLOSED') throw badRequest('This audit cycle is closed and locked');
 
@@ -178,6 +178,14 @@ router.patch(
         entityId: item.assetId,
         details: `${item.asset.assetTag} marked ${data.status}`,
       });
+      // Alert the managers (Admins + Asset Managers) and the cycle's creator so
+      // the discrepancy can be resolved. De-duplicated by notifyMany.
+      await notifyMany([...(await getManagerIds()), cycle.createdById], {
+        type: 'AUDIT_DISCREPANCY_FLAGGED',
+        title: 'Audit discrepancy flagged',
+        message: `${item.asset.assetTag} — ${item.asset.name} was flagged ${data.status} during "${cycle.name}".`,
+        link: `/audits/${cycle.id}`,
+      });
     }
     res.json(item);
   })
@@ -202,15 +210,19 @@ router.get(
 
 router.post(
   '/:id/close',
-  requireRole('ADMIN'),
+  // Closing a cycle IS the discrepancy-resolution step (it applies the
+  // Lost/Damaged outcomes), which the spec assigns to the Asset Manager as well
+  // as the Admin. Matches the requireRole('ADMIN', 'ASSET_MANAGER') pattern used
+  // for other approval actions (e.g. assets.ts, allocations.ts).
+  requireRole('ADMIN', 'ASSET_MANAGER'),
   asyncHandler(async (req, res) => {
     const cycle = unwrapMaybe(
       await supabase
         .from('AuditCycle')
-        .select('id, name, status, items:AuditItem!AuditItem_cycleId_fkey(assetId,status)')
+        .select('id, name, status, createdById, items:AuditItem!AuditItem_cycleId_fkey(assetId,status)')
         .eq('id', req.params.id)
         .single()
-    ) as { id: string; name: string; status: string; items: { assetId: string; status: string }[] } | null;
+    ) as { id: string; name: string; status: string; createdById: string; items: { assetId: string; status: string }[] } | null;
     if (!cycle) throw notFound('Audit cycle not found');
     if (cycle.status === 'CLOSED') throw badRequest('This cycle is already closed');
 
@@ -251,6 +263,13 @@ router.post(
       entityType: 'AuditCycle',
       entityId: cycle.id,
       details: `${cycle.name}: ${missing.length} lost, ${damaged.length} damaged`,
+    });
+    // Notify the managers and the cycle creator of the resolution outcome.
+    await notifyMany([...(await getManagerIds()), cycle.createdById], {
+      type: 'AUDIT_CYCLE_CLOSED',
+      title: 'Audit cycle closed',
+      message: `Audit cycle "${cycle.name}" closed: ${missing.length} asset(s) marked Lost, ${damaged.length} marked Damaged.`,
+      link: `/audits/${cycle.id}`,
     });
     res.json({
       message: 'Audit cycle closed',

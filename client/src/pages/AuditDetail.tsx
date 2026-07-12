@@ -93,7 +93,7 @@ export default function AuditDetail() {
               {cycle.createdBy && <span>Created by {cycle.createdBy.name}</span>}
             </div>
           </div>
-          {hasRole('ADMIN') && cycle.status === 'OPEN' && (
+          {hasRole('ADMIN', 'ASSET_MANAGER') && cycle.status === 'OPEN' && (
             <Button variant="danger" onClick={() => setShowClose(true)}>
               <Lock className="h-4 w-4" /> Close Audit Cycle
             </Button>
