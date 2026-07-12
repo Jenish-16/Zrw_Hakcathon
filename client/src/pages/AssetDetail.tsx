@@ -101,6 +101,7 @@ export default function AssetDetail() {
   const { data: asset, loading, refetch } = useApi<Asset>(`/assets/${id}`, [id]);
   const [tab, setTab] = useState('overview');
   const [dialogAction, setDialogAction] = useState<ActionKey | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   if (loading || !asset) return <Spinner label="Loading asset..." />;
 
@@ -152,13 +153,18 @@ export default function AssetDetail() {
         {/* Left: identity card */}
         <Card className="p-5 lg:col-span-1">
           {asset.photoUrl && (
-            <div className="mb-4 flex items-center justify-center rounded-lg border border-surface-border bg-surface-muted p-2">
+            <button
+              type="button"
+              onClick={() => setPhotoOpen(true)}
+              title="Click to enlarge"
+              className="group mb-4 flex w-full items-center justify-center rounded-lg border border-surface-border bg-surface-muted p-2 transition-colors hover:border-ink-300"
+            >
               <img
                 src={asset.photoUrl}
                 alt={asset.name}
-                className="max-h-64 w-auto max-w-full rounded object-contain"
+                className="max-h-64 w-auto max-w-full rounded object-contain transition-transform group-hover:scale-[1.02]"
               />
-            </div>
+            </button>
           )}
           <p className="font-mono text-xs uppercase tracking-wide text-ink-400">{asset.assetTag}</p>
           <h1 className="mt-1 text-lg font-semibold tracking-tight text-ink-900">{asset.name}</h1>
@@ -356,6 +362,31 @@ export default function AssetDetail() {
           onClose={() => setDialogAction(null)}
           onSaved={() => { setDialogAction(null); refetch(); }}
         />
+      )}
+
+      {photoOpen && asset.photoUrl && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${asset.name} photo`}
+          onClick={() => setPhotoOpen(false)}
+          className="animate-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-ink-900/80 p-4 backdrop-blur-sm sm:p-8"
+        >
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(false)}
+            aria-label="Close"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={asset.photoUrl}
+            alt={asset.name}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-lg object-contain shadow-overlay"
+          />
+        </div>
       )}
     </div>
   );
