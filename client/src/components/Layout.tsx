@@ -57,6 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" />, roles: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'] },
       { to: '/activity', label: 'Activity Log', icon: <ScrollText className="h-4 w-4" /> },
+      { to: '/notifications', label: 'Notifications', icon: <Bell className="h-4 w-4" /> },
     ],
   },
   {
@@ -345,6 +346,12 @@ function NotificationBell() {
               ))
             )}
           </div>
+          <button
+            onClick={() => { setOpen(false); navigate('/notifications'); }}
+            className="block w-full border-t border-surface-border px-3.5 py-2.5 text-center text-xs font-medium text-accent-600 transition-colors hover:bg-surface-muted hover:text-accent-700"
+          >
+            View all notifications
+          </button>
         </div>
       )}
     </div>

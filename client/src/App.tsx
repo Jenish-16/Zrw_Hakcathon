@@ -15,6 +15,7 @@ import AuditDetail from './pages/AuditDetail';
 import Reports from './pages/Reports';
 import Organization from './pages/Organization';
 import Activity from './pages/Activity';
+import Notifications from './pages/Notifications';
 import Profile from './pages/Profile';
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/reports" element={<ProtectedRoute roles={['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD']}><Reports /></ProtectedRoute>} />
       <Route path="/organization" element={<ProtectedRoute roles={['ADMIN']}><Organization /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />

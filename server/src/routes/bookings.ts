@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireRole } from '../middleware/auth';
 import { badRequest, conflict, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
 import { notify } from '../services/notify';
 import { syncBookingStatuses } from '../services/sync';
+import { checkUpcomingBookingReminders } from '../services/bookingReminder';
 
 const router = Router();
 router.use(authenticate);
@@ -213,6 +214,27 @@ router.post(
       link: '/bookings',
     });
     res.json(updated);
+  })
+);
+
+// Scan UPCOMING bookings starting soon and send one-time BOOKING_REMINDER
+// notifications (deduped per booking). Also runs on server startup and every
+// 5 minutes locally; this endpoint lets it be triggered on demand — useful on
+// Vercel, where long-running setInterval timers do not run (see note below).
+// Mirrors POST /allocations/check-overdue.
+router.post(
+  '/check-reminders',
+  requireRole('ADMIN', 'ASSET_MANAGER'),
+  asyncHandler(async (req, res) => {
+    const result = await checkUpcomingBookingReminders();
+    if (result.notified > 0) {
+      await logActivity(req.user!, {
+        action: 'Booking reminder check',
+        entityType: 'Booking',
+        details: `${result.notified} reminder${result.notified === 1 ? '' : 's'} sent (${result.checked} upcoming bookings)`,
+      });
+    }
+    res.json(result);
   })
 );
 

@@ -1,8 +1,13 @@
 import { createApp } from './app';
 import { env } from './lib/env';
 import { checkOverdueAllocations } from './services/overdue';
+import { checkUpcomingBookingReminders } from './services/bookingReminder';
 
 const OVERDUE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // every 15 minutes
+// Poll more often than the overdue check: the reminder window is only 30 min,
+// so a 5-min cadence guarantees every upcoming slot is caught in time (dedup
+// makes the extra runs harmless) while staying cheap.
+const REMINDER_CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 async function main() {
   const app = createApp();
@@ -21,10 +26,19 @@ async function main() {
   });
   const overdueTimer = setInterval(() => checkOverdueAllocations(), OVERDUE_CHECK_INTERVAL_MS);
 
+  // Booking reminders: same pattern — run once at startup, then periodically.
+  // (checkUpcomingBookingReminders never throws and dedupes per booking.)
+  checkUpcomingBookingReminders().then((r) => {
+    // eslint-disable-next-line no-console
+    if (r.notified > 0) console.log(`  🔔 Booking reminders: ${r.notified} reminder(s) sent`);
+  });
+  const reminderTimer = setInterval(() => checkUpcomingBookingReminders(), REMINDER_CHECK_INTERVAL_MS);
+
   const shutdown = () => {
     // eslint-disable-next-line no-console
     console.log('\nShutting down...');
     clearInterval(overdueTimer);
+    clearInterval(reminderTimer);
     server.close();
     process.exit(0);
   };
