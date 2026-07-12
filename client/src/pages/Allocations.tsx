@@ -173,6 +173,12 @@ export default function Allocations() {
 
 function AllocateModal({ presetAssetId, onClose, onSaved }: { presetAssetId: string; onClose: () => void; onSaved: () => void }) {
   const { data: assets } = useApi<Asset[]>('/assets');
+  // Only assets that are free to allocate: no active holder and not in a
+  // non-allocatable state (maintenance/lost/retired/disposed). Mirrors the
+  // server-side rule in POST /allocations.
+  const allocatableAssets = (assets ?? []).filter(
+    (a) => !a.currentHolder && !['UNDER_MAINTENANCE', 'LOST', 'RETIRED', 'DISPOSED'].includes(a.status),
+  );
   // Only employees who currently hold nothing are eligible to receive an allocation.
   const { data: users } = useApi<User[]>('/users?status=ACTIVE&unallocated=true');
   const { data: departments } = useApi<Department[]>('/departments');
@@ -243,13 +249,13 @@ function AllocateModal({ presetAssetId, onClose, onSaved }: { presetAssetId: str
           </div>
         )}
 
-        <Field label="Asset" required hint="Assets already held by someone are marked — allocating them is blocked and routed to a transfer request.">
+        <Field label="Asset" required hint="Only assets that are free to allocate are listed. Held assets must be reassigned via a transfer request.">
           <Select value={assetId} onChange={(e) => { setAssetId(e.target.value); setConflictMsg(''); }}>
             <option value="">Select an asset</option>
-            {assets?.map((a) => (
+            {allocatableAssets.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.assetTag} — {a.name}
-                {a.currentHolder ? ` (held by ${a.currentHolder.name})` : a.status !== 'AVAILABLE' ? ` (${titleCase(a.status)})` : ''}
+                {a.status !== 'AVAILABLE' ? ` (${titleCase(a.status)})` : ''}
               </option>
             ))}
           </Select>

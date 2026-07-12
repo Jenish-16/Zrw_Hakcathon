@@ -5,7 +5,7 @@ import { Plus, Package, Pencil, SlidersHorizontal, QrCode, FileText, ImagePlus, 
 import { AssetQr } from '../components/AssetQr';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
-import { Asset, Category, Department } from '../lib/types';
+import { Asset, AssetCondition, Category, Department } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Select, Spinner } from '../components/ui';
 import { assetStatusStyle, conditionStyle } from '../lib/status';
@@ -330,7 +330,7 @@ function AssetFormModal({
     serialNumber: '',
     acquisitionDate: '',
     acquisitionCost: '',
-    condition: 'GOOD',
+    condition: 'GOOD' as AssetCondition,
     location: '',
     departmentId: '',
     isBookable: false,

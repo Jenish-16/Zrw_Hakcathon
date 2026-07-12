@@ -16,13 +16,14 @@ import {
   Archive,
   Trash2,
   HelpCircle,
+  X,
 } from 'lucide-react';
 import { AssetQr } from '../components/AssetQr';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
-import { Asset, AssetStatus, Allocation } from '../lib/types';
+import { Asset, AssetStatus, Allocation, User, Department } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
-import { Badge, Button, Card, EmptyState, Modal, Select, Spinner, Tabs, Field, Textarea } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Select, Spinner, Tabs, Field, Input, Textarea } from '../components/ui';
 import { assetStatusStyle, conditionStyle, maintenanceStatusStyle } from '../lib/status';
 import { titleCase, fmtDate, fmtDateTime, fmtCurrency, initials, avatarColor } from '../lib/format';
 
@@ -99,8 +100,7 @@ export default function AssetDetail() {
   const { hasRole } = useAuth();
   const { data: asset, loading, refetch } = useApi<Asset>(`/assets/${id}`, [id]);
   const [tab, setTab] = useState('overview');
-  const [returnModal, setReturnModal] = useState(false);
-  const [confirmKey, setConfirmKey] = useState<ActionKey | null>(null);
+  const [dialogAction, setDialogAction] = useState<ActionKey | null>(null);
 
   if (loading || !asset) return <Spinner label="Loading asset..." />;
 
@@ -108,12 +108,6 @@ export default function AssetDetail() {
   const allocations = asset.allocations ?? [];
   const activeAllocation = allocations.find((a) => a.status === 'ACTIVE') ?? null;
   const quickActions = ACTIONS_BY_STATUS[asset.status] ?? [];
-
-  const runAction = (key: ActionKey) => {
-    if (key === 'allocate') return navigate(`/allocations?asset=${asset.id}`);
-    if (key === 'return') return setReturnModal(true);
-    setConfirmKey(key); // status transition — confirm first
-  };
   const maintenance = asset.maintenanceRequests ?? [];
   const bookings = asset.bookings ?? [];
   const transfers = asset.transferRequests ?? [];
@@ -207,7 +201,7 @@ export default function AssetDetail() {
                       <button
                         key={key}
                         type="button"
-                        onClick={() => runAction(key)}
+                        onClick={() => setDialogAction(key)}
                         title={meta.label}
                         aria-label={meta.label}
                         className={`flex w-[4.25rem] flex-col items-center gap-1.5 rounded-lg border px-1 py-2 transition-colors ${
@@ -352,19 +346,13 @@ export default function AssetDetail() {
         </div>
       </div>
 
-      {returnModal && activeAllocation && (
-        <ReturnModal
-          allocation={activeAllocation}
-          onClose={() => setReturnModal(false)}
-          onSaved={() => { setReturnModal(false); refetch(); }}
-        />
-      )}
-      {confirmKey && (
-        <ActionModal
+      {dialogAction && (
+        <ActionDialog
           asset={asset}
-          action={confirmKey}
-          onClose={() => setConfirmKey(null)}
-          onSaved={() => { setConfirmKey(null); refetch(); }}
+          action={dialogAction}
+          activeAllocation={activeAllocation}
+          onClose={() => setDialogAction(null)}
+          onSaved={() => { setDialogAction(null); refetch(); }}
         />
       )}
     </div>
@@ -380,55 +368,71 @@ function Detail({ label, value, mono }: { label: string; value?: string; mono?: 
   );
 }
 
-// Confirm + run a status-transition quick action (reserve, repair, retire, ...).
-function ActionModal({ asset, action, onClose, onSaved }: { asset: Asset; action: ActionKey; onClose: () => void; onSaved: () => void }) {
+// --- Full-screen action dialog ---------------------------------------------
+// Every quick action opens here: a top bar (title + Cancel), a body split into
+// an asset-summary panel (left) and the action's fields (right), and a bottom
+// bar with the submit button. The right-hand fields differ per action.
+function ActionDialog({
+  asset,
+  action,
+  activeAllocation,
+  onClose,
+  onSaved,
+}: {
+  asset: Asset;
+  action: ActionKey;
+  activeAllocation: Allocation | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const meta = ACTION_META[action];
-  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const save = async () => {
-    setLoading(true);
-    try {
-      await api.post(`/assets/${asset.id}/status`, { status: meta.status, note: note || undefined });
-      toast.success(meta.successMsg ?? 'Asset updated');
-      onSaved();
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Allocate-only data (skipped for every other action via the null URL).
+  const { data: users } = useApi<User[]>(action === 'allocate' ? '/users?status=ACTIVE&unallocated=true' : null);
+  const { data: departments } = useApi<Department[]>(action === 'allocate' ? '/departments' : null);
 
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title={meta.confirmTitle ?? meta.label}
-      subtitle={`${asset.assetTag} — ${asset.name}`}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant={meta.danger ? 'danger' : 'primary'} onClick={save} loading={loading}>{meta.label}</Button></>}
-    >
-      <div className="space-y-4">
-        {meta.confirmBody && <p className="text-sm text-ink-600">{meta.confirmBody}</p>}
-        <Field label="Note (optional)">
-          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason / details" />
-        </Field>
-      </div>
-    </Modal>
-  );
-}
-
-// Return an allocated asset from the identity card, mirroring the flow on the
-// Allocations page (condition + check-in notes).
-function ReturnModal({ allocation, onClose, onSaved }: { allocation: Allocation; onClose: () => void; onSaved: () => void }) {
+  // Field state — a superset; each action reads only what it needs.
+  const [holderType, setHolderType] = useState<'employee' | 'department'>('employee');
+  const [holderId, setHolderId] = useState('');
+  const [holderDepartmentId, setHolderDepartmentId] = useState('');
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [returnCondition, setReturnCondition] = useState<Asset['condition']>('GOOD');
-  const [checkInNotes, setCheckInNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [note, setNote] = useState('');
+
+  const title = `${meta.label} ${asset.name}`;
 
   const submit = async () => {
     setLoading(true);
     try {
-      await api.post(`/allocations/${allocation.id}/return`, { returnCondition, checkInNotes: checkInNotes || undefined });
-      toast.success('Asset returned');
+      if (action === 'allocate') {
+        if (holderType === 'employee' ? !holderId : !holderDepartmentId) {
+          toast.error(holderType === 'employee' ? 'Select an employee' : 'Select a department');
+          setLoading(false);
+          return;
+        }
+        await api.post('/allocations', {
+          assetId: asset.id,
+          ...(holderType === 'employee' ? { holderId } : { holderDepartmentId }),
+          expectedReturnDate: expectedReturnDate || null,
+          note: note || undefined,
+        });
+        toast.success('Asset allocated');
+      } else if (action === 'return') {
+        if (!activeAllocation) {
+          toast.error('No active allocation to return');
+          setLoading(false);
+          return;
+        }
+        await api.post(`/allocations/${activeAllocation.id}/return`, {
+          returnCondition,
+          checkInNotes: note || undefined,
+        });
+        toast.success('Asset returned');
+      } else {
+        await api.post(`/assets/${asset.id}/status`, { status: meta.status, note: note || undefined });
+        toast.success(meta.successMsg ?? 'Asset updated');
+      }
       onSaved();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -437,29 +441,144 @@ function ReturnModal({ allocation, onClose, onSaved }: { allocation: Allocation;
     }
   };
 
-  const holderName = allocation.holder?.name ?? allocation.holderDepartment?.name ?? 'current holder';
+  // Close on Escape for keyboard users.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title="Return asset"
-      subtitle={`Returning from ${holderName}`}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={loading}>Confirm return</Button></>}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onKeyDown={onKeyDown}
+      className="animate-fade-in fixed inset-0 z-50 flex flex-col bg-surface"
     >
-      <div className="space-y-4">
-        <Field label="Condition on return">
-          <Select value={returnCondition} onChange={(e) => setReturnCondition(e.target.value as Asset['condition'])}>
-            {CONDITIONS.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}
-          </Select>
-        </Field>
-        <Field label="Check-in notes (optional)">
-          <Textarea rows={3} value={checkInNotes} onChange={(e) => setCheckInNotes(e.target.value)} placeholder="Condition details, accessories returned..." />
-        </Field>
-        <p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-500">
-          The asset status will revert to <span className="font-medium text-ink-700">Available</span> after return.
-        </p>
+      {/* Top bar */}
+      <header className="flex items-center justify-between border-b border-surface-border px-5 py-3.5 sm:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${meta.danger ? 'bg-red-500/10 text-red-600' : 'bg-accent-500/10 text-accent-700'}`}>
+            {meta.icon}
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold tracking-tight text-ink-900">{title}</h2>
+            <p className="truncate font-mono text-xs text-ink-400">{asset.assetTag}</p>
+          </div>
+        </div>
+        <Button variant="secondary" size="sm" onClick={onClose}>
+          <X className="h-4 w-4" /> Cancel
+        </Button>
+      </header>
+
+      {/* Body: asset summary (left) + action fields (right) */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 px-5 py-6 sm:px-8 md:grid-cols-5">
+          {/* Left — asset summary */}
+          <aside className="md:col-span-2">
+            <Card className="p-4">
+              {asset.photoUrl && (
+                <img src={asset.photoUrl} alt={asset.name} className="mb-3 h-32 w-full rounded-lg border border-surface-border object-cover" />
+              )}
+              <p className="micro-label mb-2">Asset</p>
+              <p className="text-sm font-semibold text-ink-900">{asset.name}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Badge className={assetStatusStyle[asset.status]}>{titleCase(asset.status)}</Badge>
+                <Badge className={conditionStyle[asset.condition]}>{titleCase(asset.condition)}</Badge>
+              </div>
+              <dl className="mt-4 space-y-2.5 border-t border-surface-border pt-3">
+                <SummaryRow label="Category" value={asset.category?.name} />
+                <SummaryRow label="Department" value={asset.department?.name ?? 'Unassigned'} />
+                <SummaryRow label="Location" value={asset.location ?? '—'} />
+                <SummaryRow label="Serial no." value={asset.serialNumber ?? '—'} />
+                <SummaryRow label="Held by" value={asset.currentHolder?.name ?? 'Not allocated'} />
+              </dl>
+            </Card>
+          </aside>
+
+          {/* Right — action fields */}
+          <section className="md:col-span-3">
+            <div className="space-y-4">
+              {action === 'allocate' && (
+                <>
+                  <Field label="Allocate to" required>
+                    <div className="mb-2 flex gap-1.5">
+                      {(['employee', 'department'] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setHolderType(t)}
+                          className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                            holderType === t ? 'bg-ink-900 text-white' : 'bg-surface text-ink-600 ring-1 ring-surface-border hover:bg-surface-muted'
+                          }`}
+                        >
+                          {t === 'employee' ? 'Employee' : 'Department'}
+                        </button>
+                      ))}
+                    </div>
+                    {holderType === 'employee' ? (
+                      <Select value={holderId} onChange={(e) => setHolderId(e.target.value)}>
+                        <option value="">Select an employee</option>
+                        {users?.map((u) => <option key={u.id} value={u.id}>{u.name}{u.department ? ` · ${u.department.name}` : ''}</option>)}
+                      </Select>
+                    ) : (
+                      <Select value={holderDepartmentId} onChange={(e) => setHolderDepartmentId(e.target.value)}>
+                        <option value="">Select a department</option>
+                        {departments?.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.code})</option>)}
+                      </Select>
+                    )}
+                  </Field>
+                  <Field label="Expected return date (optional)">
+                    <Input type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+                  </Field>
+                  <Field label="Note (optional)">
+                    <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Any handover notes..." />
+                  </Field>
+                </>
+              )}
+
+              {action === 'return' && (
+                <>
+                  <Field label="Condition on return">
+                    <Select value={returnCondition} onChange={(e) => setReturnCondition(e.target.value as Asset['condition'])}>
+                      {CONDITIONS.map((c) => <option key={c} value={c}>{titleCase(c)}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Check-in notes (optional)">
+                    <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Condition details, accessories returned..." />
+                  </Field>
+                  <p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-500">
+                    The asset status will revert to <span className="font-medium text-ink-700">Available</span> after return.
+                  </p>
+                </>
+              )}
+
+              {action !== 'allocate' && action !== 'return' && (
+                <>
+                  {meta.confirmBody && <p className="text-sm text-ink-600">{meta.confirmBody}</p>}
+                  <Field label="Note (optional)">
+                    <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason / details" />
+                  </Field>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
       </div>
-    </Modal>
+
+      {/* Bottom bar */}
+      <footer className="flex items-center justify-end gap-2 border-t border-surface-border px-5 py-3.5 sm:px-8">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant={meta.danger ? 'danger' : 'primary'} onClick={submit} loading={loading}>{meta.label}</Button>
+      </footer>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-xs text-ink-400">{label}</dt>
+      <dd className="truncate text-[13px] font-medium text-ink-700">{value}</dd>
+    </div>
   );
 }
