@@ -24,17 +24,11 @@ export function ProtectedRoute({ children, roles }: { children: ReactNode; roles
     return <Navigate to={to} replace />;
   }
 
+  // No permission for this page → quietly send them to their assets rather
+  // than showing a dead-end "access restricted" panel. /assets is open to
+  // every authenticated role (employees see their own; staff see all).
   if (roles && !roles.includes(user.role)) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-          <h2 className="text-xl font-semibold tracking-tight text-ink-900">Access restricted</h2>
-          <p className="max-w-md text-[13px] text-ink-500">
-            You don't have permission to view this page. Contact an administrator if you believe this is a mistake.
-          </p>
-        </div>
-      </Layout>
-    );
+    return <Navigate to="/assets" replace />;
   }
 
   return <Layout>{children}</Layout>;
