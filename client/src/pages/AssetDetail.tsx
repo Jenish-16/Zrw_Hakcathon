@@ -152,11 +152,13 @@ export default function AssetDetail() {
         {/* Left: identity card */}
         <Card className="p-5 lg:col-span-1">
           {asset.photoUrl && (
-            <img
-              src={asset.photoUrl}
-              alt={asset.name}
-              className="mb-4 h-44 w-full rounded-lg border border-surface-border object-cover"
-            />
+            <div className="mb-4 flex items-center justify-center rounded-lg border border-surface-border bg-surface-muted p-2">
+              <img
+                src={asset.photoUrl}
+                alt={asset.name}
+                className="max-h-64 w-auto max-w-full rounded object-contain"
+              />
+            </div>
           )}
           <p className="font-mono text-xs uppercase tracking-wide text-ink-400">{asset.assetTag}</p>
           <h1 className="mt-1 text-lg font-semibold tracking-tight text-ink-900">{asset.name}</h1>
@@ -477,7 +479,9 @@ function ActionDialog({
           <aside className="md:col-span-2">
             <Card className="p-4">
               {asset.photoUrl && (
-                <img src={asset.photoUrl} alt={asset.name} className="mb-3 h-32 w-full rounded-lg border border-surface-border object-cover" />
+                <div className="mb-3 flex items-center justify-center rounded-lg border border-surface-border bg-surface-muted p-2">
+                  <img src={asset.photoUrl} alt={asset.name} className="max-h-40 w-auto max-w-full rounded object-contain" />
+                </div>
               )}
               <p className="micro-label mb-2">Asset</p>
               <p className="text-sm font-semibold text-ink-900">{asset.name}</p>
