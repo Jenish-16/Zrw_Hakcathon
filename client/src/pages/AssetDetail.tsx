@@ -8,7 +8,9 @@ import {
   CalendarDays,
   Info,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
+import { AssetQr } from '../components/AssetQr';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
 import { Asset } from '../lib/types';
@@ -44,6 +46,13 @@ export default function AssetDetail() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: identity card */}
         <Card className="p-5 lg:col-span-1">
+          {asset.photoUrl && (
+            <img
+              src={asset.photoUrl}
+              alt={asset.name}
+              className="mb-4 h-44 w-full rounded-lg border border-surface-border object-cover"
+            />
+          )}
           <p className="font-mono text-xs uppercase tracking-wide text-ink-400">{asset.assetTag}</p>
           <h1 className="mt-1 text-lg font-semibold tracking-tight text-ink-900">{asset.name}</h1>
 
@@ -76,6 +85,23 @@ export default function AssetDetail() {
               <Detail key={k} label={titleCase(k)} value={String(v)} />
             ))}
           </dl>
+
+          {asset.documentUrl && (
+            <a
+              href={asset.documentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 flex items-center gap-2 rounded-lg border border-surface-border px-3 py-2.5 text-[13px] font-medium text-ink-700 transition-colors hover:bg-surface-muted"
+            >
+              <FileText className="h-4 w-4 text-ink-400" />
+              <span className="min-w-0 truncate">View attached document</span>
+            </a>
+          )}
+
+          <div className="mt-5 border-t border-surface-border pt-4">
+            <p className="micro-label mb-3 text-center">QR label</p>
+            <AssetQr asset={asset} size={112} />
+          </div>
 
           {canManage && (
             <div className="mt-6 flex flex-col gap-2">

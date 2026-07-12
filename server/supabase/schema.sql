@@ -104,6 +104,7 @@ create table if not exists "AssetCategory" (
 create table if not exists "Asset" (
   id                text primary key default gen_random_uuid()::text,
   "assetTag"        text not null unique,
+  "qrCode"          text,
   name              text not null,
   "serialNumber"    text,
   "acquisitionDate" timestamptz,
@@ -124,7 +125,10 @@ create table if not exists "Asset" (
 create table if not exists "Allocation" (
   id                 text primary key default gen_random_uuid()::text,
   "assetId"          text not null,
-  "holderId"         text not null,
+  -- Exactly one of holderId (employee) / holderDepartmentId (whole department)
+  -- is set; the API enforces this.
+  "holderId"         text,
+  "holderDepartmentId" text,
   "allocatedById"    text not null,
   "expectedReturnDate" timestamptz,
   "allocatedAt"      timestamptz not null default now(),
@@ -216,6 +220,9 @@ create table if not exists "Notification" (
   title     text not null,
   message   text not null,
   link      text,
+  -- Optional reference to the record this notification is about (e.g. an
+  -- Allocation id) so repeat checks can detect "already notified".
+  "entityId" text,
   "isRead"  boolean not null default false,
   "createdAt" timestamptz not null default now()
 );
@@ -230,6 +237,12 @@ create table if not exists "ActivityLog" (
   details      text,
   "createdAt"  timestamptz not null default now()
 );
+
+-- --- Column repairs for databases created before these features ------------
+-- (must run BEFORE the foreign-key block below references the new columns)
+alter table "Allocation"   alter column "holderId" drop not null;
+alter table "Allocation"   add column if not exists "holderDepartmentId" text;
+alter table "Notification" add column if not exists "entityId" text;
 
 -- --- Foreign keys (named to match supabase-js embedded selects) ------------
 -- Each is guarded so the script is idempotent: re-running it repairs any
@@ -257,6 +270,9 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 do $$ begin
   alter table "Allocation"      add constraint "Allocation_allocatedById_fkey"     foreign key ("allocatedById")  references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Allocation"      add constraint "Allocation_holderDepartmentId_fkey" foreign key ("holderDepartmentId") references "Department"(id);
 exception when duplicate_object then null; end $$;
 do $$ begin
   alter table "TransferRequest" add constraint "TransferRequest_assetId_fkey"      foreign key ("assetId")        references "Asset"(id);
@@ -328,6 +344,16 @@ create trigger set_updated_at_asset           before update on "Asset"          
 create trigger set_updated_at_transferrequest before update on "TransferRequest" for each row execute function set_updated_at();
 create trigger set_updated_at_booking         before update on "Booking"         for each row execute function set_updated_at();
 create trigger set_updated_at_maintenance     before update on "MaintenanceRequest" for each row execute function set_updated_at();
+
+-- --- Asset QR code (added later; guarded so re-runs repair old databases) ---
+-- Each asset carries a scannable QR identifier, e.g. "QR-AF-0001-3F7A2B".
+-- New assets get theirs from the API at registration; the backfill below
+-- covers rows created before the column existed.
+alter table "Asset" add column if not exists "qrCode" text;
+create unique index if not exists "Asset_qrCode_key" on "Asset"("qrCode");
+update "Asset"
+   set "qrCode" = 'QR-' || "assetTag" || '-' || upper(substr(md5(random()::text), 1, 6))
+ where "qrCode" is null;
 
 -- --- Sequential asset tag (AF-0001, AF-0002, ...) --------------------------
 create or replace function next_asset_tag() returns text as $$

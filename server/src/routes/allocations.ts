@@ -6,35 +6,36 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { badRequest, conflict, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
 import { notify } from '../services/notify';
+import { checkOverdueAllocations } from '../services/overdue';
 
 const router = Router();
 router.use(authenticate);
 
 // Embedded select mirroring the old Prisma `include`. Named FK constraints
-// disambiguate the two User relations (holder vs allocatedBy).
+// disambiguate the two User relations (holder vs allocatedBy). The holder is
+// EITHER a user (holder) or a whole department (holderDepartment).
 const allocationSelect =
   '*, ' +
   'asset:Asset!Allocation_assetId_fkey(id,assetTag,name,status), ' +
   'holder:User!Allocation_holderId_fkey(id,name,email,departmentId), ' +
+  'holderDepartment:Department!Allocation_holderDepartmentId_fkey(id,name,code), ' +
   'allocatedBy:User!Allocation_allocatedById_fkey(id,name)';
 
+/** Display name for whoever holds an allocation (person or department). */
+function holderName(a: any): string {
+  return a.holder?.name ?? (a.holderDepartment ? `${a.holderDepartment.name} (department)` : 'Unknown');
+}
+
 // List allocations. Employees see their own; managers/admin see everything;
-// department heads see their department's allocations.
+// department heads see their department's allocations (including assets
+// allocated to the department itself).
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const { status, overdue, holderId } = req.query as Record<string, string>;
     const user = req.user!;
 
-    // holder is joined as inner so we can filter parents by holder.departmentId.
-    let q = supabase
-      .from('Allocation')
-      .select(
-        '*, ' +
-          'asset:Asset!Allocation_assetId_fkey(id,assetTag,name,status), ' +
-          'holder:User!Allocation_holderId_fkey!inner(id,name,email,departmentId), ' +
-          'allocatedBy:User!Allocation_allocatedById_fkey(id,name)'
-      );
+    let q = supabase.from('Allocation').select(allocationSelect);
 
     if (overdue === 'true') {
       q = q.eq('status', 'ACTIVE').lt('expectedReturnDate', new Date().toISOString());
@@ -47,15 +48,24 @@ router.get(
     if (user.role === 'EMPLOYEE') holderIdFilter = user.id;
     if (holderIdFilter) q = q.eq('holderId', holderIdFilter);
 
-    if (user.role === 'DEPARTMENT_HEAD') {
-      if (user.departmentId) q = q.eq('holder.departmentId', user.departmentId);
-      else if (!holderIdFilter) q = q.eq('holderId', user.id);
+    let allocations = unwrap(await q.order('allocatedAt', { ascending: false })) as any[];
+
+    // Department heads: their members' allocations + allocations made to the
+    // department itself. (Filtered in JS: a parent-level OR across an embedded
+    // column and an own column isn't expressible in one PostgREST filter.)
+    if (user.role === 'DEPARTMENT_HEAD' && !holderIdFilter) {
+      allocations = user.departmentId
+        ? allocations.filter(
+            (a) =>
+              a.holder?.departmentId === user.departmentId ||
+              a.holderDepartmentId === user.departmentId
+          )
+        : allocations.filter((a) => a.holderId === user.id);
     }
 
-    const allocations = unwrap(await q.order('allocatedAt', { ascending: false }));
     const now = Date.now();
     res.json(
-      (allocations as any[]).map((a) => ({
+      allocations.map((a) => ({
         ...a,
         isOverdue:
           a.status === 'ACTIVE' &&
@@ -68,22 +78,31 @@ router.get(
 
 const allocateSchema = z.object({
   assetId: z.string().min(1),
-  holderId: z.string().min(1),
+  holderId: z.string().min(1).optional(),
+  holderDepartmentId: z.string().min(1).optional(),
   expectedReturnDate: z.coerce.date().nullable().optional(),
   note: z.string().optional(),
 });
 
-// Allocate an asset. Blocks double-allocation and suggests a transfer instead.
+// Allocate an asset to an employee OR a department. Blocks double-allocation
+// and suggests a transfer instead.
 router.post(
   '/',
   requireRole('ADMIN', 'ASSET_MANAGER'),
   asyncHandler(async (req, res) => {
     const data = allocateSchema.parse(req.body);
+    if (data.holderId && data.holderDepartmentId) {
+      throw badRequest('Choose either an employee or a department as the holder, not both');
+    }
+    if (!data.holderId && !data.holderDepartmentId) {
+      throw badRequest('Select an employee or a department to allocate this asset to');
+    }
+
     const asset = unwrapMaybe<any>(
       await supabase
         .from('Asset')
         .select(
-          '*, allocations:Allocation!Allocation_assetId_fkey(status, holder:User!Allocation_holderId_fkey(id,name,email))'
+          '*, allocations:Allocation!Allocation_assetId_fkey(status, holder:User!Allocation_holderId_fkey(id,name,email), holderDepartment:Department!Allocation_holderDepartmentId_fkey(id,name))'
         )
         .eq('id', data.assetId)
         .single()
@@ -93,17 +112,31 @@ router.post(
     const activeAllocation = (asset.allocations ?? []).find((al: any) => al.status === 'ACTIVE');
     if (activeAllocation) {
       throw conflict(
-        `This asset is currently held by ${activeAllocation.holder.name}. Raise a transfer request to reassign it.`
+        `This asset is currently held by ${holderName(activeAllocation)}. Raise a transfer request to reassign it.`
       );
     }
     if (['UNDER_MAINTENANCE', 'LOST', 'RETIRED', 'DISPOSED'].includes(asset.status)) {
       throw badRequest(`This asset is ${asset.status.replace('_', ' ').toLowerCase()} and cannot be allocated.`);
     }
 
-    const holder = unwrapMaybe<any>(
-      await supabase.from('User').select('id, name').eq('id', data.holderId).single()
-    );
-    if (!holder) throw badRequest('Selected employee does not exist');
+    // Resolve the holder — a person or a whole department.
+    let holderLabel: string;
+    let notifyUserId: string | null = null;
+    if (data.holderId) {
+      const holder = unwrapMaybe<any>(
+        await supabase.from('User').select('id, name').eq('id', data.holderId).single()
+      );
+      if (!holder) throw badRequest('Selected employee does not exist');
+      holderLabel = holder.name;
+      notifyUserId = holder.id;
+    } else {
+      const dept = unwrapMaybe<any>(
+        await supabase.from('Department').select('id, name, headId').eq('id', data.holderDepartmentId!).single()
+      );
+      if (!dept) throw badRequest('Selected department does not exist');
+      holderLabel = `${dept.name} (department)`;
+      notifyUserId = dept.headId ?? null; // tell the department head, if any
+    }
 
     // (was prisma.$transaction) create allocation, then flip asset status.
     const allocation = unwrap(
@@ -111,7 +144,8 @@ router.post(
         .from('Allocation')
         .insert({
           assetId: data.assetId,
-          holderId: data.holderId,
+          holderId: data.holderId ?? null,
+          holderDepartmentId: data.holderDepartmentId ?? null,
           allocatedById: req.user!.id,
           expectedReturnDate: data.expectedReturnDate ? data.expectedReturnDate.toISOString() : null,
           checkInNotes: data.note ?? null,
@@ -127,15 +161,17 @@ router.post(
       action: 'Allocated asset',
       entityType: 'Asset',
       entityId: asset.id,
-      details: `${asset.assetTag} → ${holder.name}`,
+      details: `${asset.assetTag} → ${holderLabel}`,
     });
-    await notify({
-      userId: holder.id,
-      type: 'ASSET_ASSIGNED',
-      title: 'Asset assigned to you',
-      message: `${asset.assetTag} — ${asset.name} has been allocated to you.`,
-      link: '/allocations',
-    });
+    if (notifyUserId) {
+      await notify({
+        userId: notifyUserId,
+        type: 'ASSET_ASSIGNED',
+        title: data.holderId ? 'Asset assigned to you' : 'Asset assigned to your department',
+        message: `${asset.assetTag} — ${asset.name} has been allocated to ${data.holderId ? 'you' : holderLabel}.`,
+        link: '/allocations',
+      });
+    }
 
     res.status(201).json(allocation);
   })
@@ -155,7 +191,7 @@ router.post(
       await supabase
         .from('Allocation')
         .select(
-          '*, asset:Asset!Allocation_assetId_fkey(*), holder:User!Allocation_holderId_fkey(*)'
+          '*, asset:Asset!Allocation_assetId_fkey(*), holder:User!Allocation_holderId_fkey(*), holderDepartment:Department!Allocation_holderDepartmentId_fkey(id,name)'
         )
         .eq('id', req.params.id)
         .single()
@@ -168,7 +204,9 @@ router.post(
       user.role === 'ADMIN' ||
       user.role === 'ASSET_MANAGER' ||
       user.id === allocation.holderId ||
-      (user.role === 'DEPARTMENT_HEAD' && user.departmentId === allocation.holder.departmentId);
+      (user.role === 'DEPARTMENT_HEAD' &&
+        (user.departmentId === allocation.holder?.departmentId ||
+          user.departmentId === allocation.holderDepartmentId));
     if (!canReturn) throw forbidden('You cannot process this return');
 
     // (was prisma.$transaction) close the allocation, then free the asset.
@@ -196,9 +234,29 @@ router.post(
       action: 'Returned asset',
       entityType: 'Asset',
       entityId: allocation.assetId,
-      details: `${allocation.asset.assetTag} returned by ${allocation.holder.name}`,
+      details: `${allocation.asset.assetTag} returned by ${holderName(allocation)}`,
     });
     res.json({ message: 'Asset returned', assetId: allocation.assetId });
+  })
+);
+
+// Scan ACTIVE allocations past their expected return date and create real
+// OVERDUE_RETURN notifications (deduped per allocation). Also runs on server
+// startup and every 15 minutes; this endpoint lets an admin trigger it on
+// demand.
+router.post(
+  '/check-overdue',
+  requireRole('ADMIN', 'ASSET_MANAGER'),
+  asyncHandler(async (req, res) => {
+    const result = await checkOverdueAllocations();
+    if (result.notified > 0) {
+      await logActivity(req.user!, {
+        action: 'Overdue check',
+        entityType: 'Allocation',
+        details: `${result.notified} overdue notification${result.notified === 1 ? '' : 's'} sent (${result.checked} overdue allocations)`,
+      });
+    }
+    res.json(result);
   })
 );
 

@@ -53,6 +53,7 @@ export type AssetCondition = 'NEW' | 'GOOD' | 'FAIR' | 'POOR' | 'DAMAGED';
 export interface Asset {
   id: string;
   assetTag: string;
+  qrCode?: string | null;
   name: string;
   serialNumber?: string | null;
   acquisitionDate?: string | null;
@@ -79,8 +80,11 @@ export interface Allocation {
   id: string;
   assetId: string;
   asset?: { id: string; assetTag: string; name: string; status: AssetStatus };
-  holderId: string;
-  holder?: { id: string; name: string; email: string; departmentId?: string | null };
+  /** Exactly one of holderId / holderDepartmentId is set. */
+  holderId: string | null;
+  holder?: { id: string; name: string; email: string; departmentId?: string | null } | null;
+  holderDepartmentId?: string | null;
+  holderDepartment?: { id: string; name: string; code?: string } | null;
   allocatedBy?: { id: string; name: string };
   expectedReturnDate?: string | null;
   allocatedAt: string;

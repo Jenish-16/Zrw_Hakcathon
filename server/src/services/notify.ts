@@ -6,6 +6,8 @@ interface NotifyInput {
   title: string;
   message: string;
   link?: string;
+  /** Optional id of the record this is about (used to avoid duplicate sends). */
+  entityId?: string;
 }
 
 /** Create a notification for a single user. Never throws. */
@@ -17,6 +19,7 @@ export async function notify(input: NotifyInput): Promise<void> {
       title: input.title,
       message: input.message,
       link: input.link ?? null,
+      entityId: input.entityId ?? null,
     });
     if (error) throw error;
   } catch (err) {
@@ -37,6 +40,7 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, 'us
         title: input.title,
         message: input.message,
         link: input.link ?? null,
+        entityId: input.entityId ?? null,
       }))
     );
     if (error) throw error;

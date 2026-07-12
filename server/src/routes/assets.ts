@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
+import multer from 'multer';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
@@ -10,6 +12,15 @@ import { AssetStatus } from '../lib/types';
 
 const router = Router();
 router.use(authenticate);
+
+/**
+ * Scannable QR identifier, e.g. "QR-AF-0001-3F7A2B". Ties the code to the
+ * human-readable asset tag while a random suffix keeps it unguessable and
+ * unique (enforced by the Asset_qrCode_key index).
+ */
+function makeQrCode(assetTag: string): string {
+  return `QR-${assetTag}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
 
 // Base + active-allocation embed used by list/create/patch/status responses.
 const LIST_SELECT =
@@ -31,7 +42,7 @@ router.get(
     let q = supabase.from('Asset').select(LIST_SELECT);
     if (search) {
       q = q.or(
-        `assetTag.ilike.%${search}%,name.ilike.%${search}%,serialNumber.ilike.%${search}%,location.ilike.%${search}%`
+        `assetTag.ilike.%${search}%,name.ilike.%${search}%,serialNumber.ilike.%${search}%,location.ilike.%${search}%,qrCode.ilike.%${search}%`
       );
     }
     if (category) q = q.eq('categoryId', category);
@@ -47,6 +58,50 @@ router.get(
       return { ...rest, currentHolder: activeHolder(allocations) };
     });
     res.json(shaped);
+  })
+);
+
+// --- File upload (photos & documents) --------------------------------------
+// Receives one multipart file, stores it in the public "asset-files" Supabase
+// Storage bucket, and returns its public URL for photoUrl/documentUrl.
+const ALLOWED_MIME = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // matches the bucket's 10 MB limit
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME.includes(file.mimetype)) return cb(null, true);
+    cb(new Error('Only images (JPEG/PNG/WebP/GIF) or documents (PDF/DOC/DOCX) are allowed'));
+  },
+});
+
+router.post(
+  '/upload',
+  requireRole('ADMIN', 'ASSET_MANAGER'),
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) throw badRequest('No file provided (field name must be "file")');
+
+    // Unique, URL-safe object path: uploads/<timestamp>-<random>-<clean name>
+    const clean = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+    const path = `uploads/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${clean}`;
+
+    const { error } = await supabase.storage
+      .from('asset-files')
+      .upload(path, file.buffer, { contentType: file.mimetype });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('asset-files').getPublicUrl(path);
+    res.status(201).json({ url: data.publicUrl });
   })
 );
 
@@ -108,6 +163,7 @@ router.post(
         .from('Asset')
         .insert({
           assetTag,
+          qrCode: makeQrCode(assetTag),
           name: data.name,
           categoryId: data.categoryId,
           serialNumber: data.serialNumber ?? null,

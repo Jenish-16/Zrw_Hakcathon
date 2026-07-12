@@ -120,10 +120,20 @@ function Party({ name }: { name: string }) {
   );
 }
 
-function RequestModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+// Exported so other screens (e.g. the allocation conflict banner) can open the
+// same transfer-request flow with an asset pre-selected.
+export function RequestModal({
+  presetAssetId = '',
+  onClose,
+  onSaved,
+}: {
+  presetAssetId?: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { data: assets } = useApi<Asset[]>('/assets');
   const { data: users } = useApi<User[]>('/users?status=ACTIVE');
-  const [assetId, setAssetId] = useState('');
+  const [assetId, setAssetId] = useState(presetAssetId);
   const [toUserId, setToUserId] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
