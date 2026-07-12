@@ -370,3 +370,11 @@ begin
   return 'AF-' || lpad(v::text, 4, '0');
 end;
 $$ language plpgsql;
+
+-- --- Reload PostgREST's schema cache ---------------------------------------
+-- supabase-js talks to PostgREST, which caches the table/column definitions.
+-- After a column is added (e.g. "qrCode"), the API can keep reporting
+-- "Could not find the 'qrCode' column of 'Asset' in the schema cache" until it
+-- reloads. This NOTIFY forces an immediate reload, so re-running this file
+-- always leaves the API in sync with the database.
+notify pgrst, 'reload schema';
