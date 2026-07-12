@@ -71,9 +71,11 @@ export interface Asset {
   departmentId?: string | null;
   department?: { id: string; name: string; code: string } | null;
   currentHolder?: { id: string; name: string; email: string } | null;
+  createdAt?: string;
   allocations?: Allocation[];
   maintenanceRequests?: MaintenanceRequest[];
   bookings?: Booking[];
+  transferRequests?: TransferRequest[];
 }
 
 export type AllocationStatus = 'ACTIVE' | 'RETURNED';

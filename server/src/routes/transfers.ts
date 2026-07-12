@@ -63,6 +63,60 @@ router.post(
       throw badRequest(`${toUser.name} already holds this asset`);
     }
 
+    // Admins are the highest authority — they skip the request→approval step and
+    // execute the transfer directly: close the current allocation, re-allocate to
+    // the target, flip the asset, and record the transfer as COMPLETED. Mirrors
+    // the approve handler's re-allocation logic.
+    if (req.user!.role === 'ADMIN') {
+      const close = await supabase
+        .from('Allocation')
+        .update({ status: 'RETURNED', returnedAt: new Date().toISOString() })
+        .eq('assetId', data.assetId)
+        .eq('status', 'ACTIVE');
+      if (close.error) throw close.error;
+
+      const reallocate = await supabase.from('Allocation').insert({
+        assetId: data.assetId,
+        holderId: data.toUserId,
+        allocatedById: req.user!.id,
+        status: 'ACTIVE',
+      });
+      if (reallocate.error) throw reallocate.error;
+
+      const assetUpdate = await supabase.from('Asset').update({ status: 'ALLOCATED' }).eq('id', data.assetId);
+      if (assetUpdate.error) throw assetUpdate.error;
+
+      const executed = unwrap(
+        await supabase
+          .from('TransferRequest')
+          .insert({
+            assetId: data.assetId,
+            fromUserId: currentHolder?.id ?? null,
+            toUserId: data.toUserId,
+            requestedById: req.user!.id,
+            approvedById: req.user!.id,
+            note: data.note ?? null,
+            status: 'COMPLETED',
+          })
+          .select(transferSelect)
+          .single()
+      );
+      await logActivity(req.user!, {
+        action: 'Executed transfer',
+        entityType: 'Asset',
+        entityId: asset.id,
+        details: `${asset.assetTag} → ${toUser.name}`,
+      });
+      await notify({
+        userId: data.toUserId,
+        type: 'TRANSFER_APPROVED',
+        title: 'Asset transferred to you',
+        message: `${asset.assetTag} — ${asset.name} has been allocated to you.`,
+        link: '/allocations',
+      });
+      return res.status(201).json(executed);
+    }
+
     const existingPending = await supabase
       .from('TransferRequest')
       .select('id')

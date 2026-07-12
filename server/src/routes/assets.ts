@@ -28,7 +28,7 @@ const LIST_SELECT =
 
 // Full history embed for the detail view.
 const DETAIL_SELECT =
-  '*, category:AssetCategory!Asset_categoryId_fkey(*), department:Department!Asset_departmentId_fkey(id,name,code), allocations:Allocation!Allocation_assetId_fkey(*, holder:User!Allocation_holderId_fkey(id,name,email), allocatedBy:User!Allocation_allocatedById_fkey(id,name)), maintenanceRequests:MaintenanceRequest!MaintenanceRequest_assetId_fkey(*, raisedBy:User!MaintenanceRequest_raisedById_fkey(id,name), approvedBy:User!MaintenanceRequest_approvedById_fkey(id,name)), bookings:Booking!Booking_resourceId_fkey(*, bookedBy:User!Booking_bookedById_fkey(id,name))';
+  '*, category:AssetCategory!Asset_categoryId_fkey(*), department:Department!Asset_departmentId_fkey(id,name,code), allocations:Allocation!Allocation_assetId_fkey(*, holder:User!Allocation_holderId_fkey(id,name,email), allocatedBy:User!Allocation_allocatedById_fkey(id,name)), maintenanceRequests:MaintenanceRequest!MaintenanceRequest_assetId_fkey(*, raisedBy:User!MaintenanceRequest_raisedById_fkey(id,name), approvedBy:User!MaintenanceRequest_approvedById_fkey(id,name)), bookings:Booking!Booking_resourceId_fkey(*, bookedBy:User!Booking_bookedById_fkey(id,name)), transferRequests:TransferRequest!TransferRequest_assetId_fkey(*, fromUser:User!TransferRequest_fromUserId_fkey(id,name), toUser:User!TransferRequest_toUserId_fkey(id,name))';
 
 function activeHolder(allocations: any[] | undefined | null) {
   return (allocations ?? []).find((al) => al.status === 'ACTIVE')?.holder ?? null;

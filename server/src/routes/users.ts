@@ -20,7 +20,7 @@ const publicUser =
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { role, status, departmentId, search } = req.query as Record<string, string>;
+    const { role, status, departmentId, search, unallocated } = req.query as Record<string, string>;
     let q = supabase.from('User').select(publicUser);
     if (role) q = q.eq('role', role);
     if (status) q = q.eq('status', status);
@@ -28,7 +28,19 @@ router.get(
     if (search) {
       q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,jobTitle.ilike.%${search}%`);
     }
-    const users = unwrap(await q.order('name', { ascending: true }));
+    let users = unwrap(await q.order('name', { ascending: true })) as { id: string }[];
+
+    // ?unallocated=true — keep only employees who currently hold NO active
+    // allocation (used by the allocation + transfer recipient dropdowns so they
+    // only show eligible people). Queried directly on Allocation (no embeds) so
+    // it works regardless of the holderDepartment relation.
+    if (unallocated === 'true') {
+      const active = unwrap(
+        await supabase.from('Allocation').select('holderId').eq('status', 'ACTIVE').not('holderId', 'is', null)
+      ) as { holderId: string }[];
+      const held = new Set(active.map((a) => a.holderId));
+      users = users.filter((u) => !held.has(u.id));
+    }
     res.json(users);
   })
 );

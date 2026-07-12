@@ -35,7 +35,37 @@ export default function AssetDetail() {
   const allocations = asset.allocations ?? [];
   const maintenance = asset.maintenanceRequests ?? [];
   const bookings = asset.bookings ?? [];
+  const transfers = asset.transferRequests ?? [];
   const custom = (asset.customData as Record<string, unknown>) ?? {};
+
+  // Full lifecycle: registration + allocations + returns + maintenance + transfers,
+  // newest first. Each kind gets its own colour so the event types are distinct.
+  const DOT: Record<string, string> = {
+    register: 'bg-emerald-500',
+    alloc: 'bg-accent-500',
+    return: 'bg-sky-500',
+    maint: 'bg-amber-500',
+    transfer: 'bg-violet-500',
+  };
+  const timeline = [
+    ...(asset.createdAt ? [{ t: asset.createdAt, text: 'Registered', kind: 'register' as const }] : []),
+    ...allocations.map((a) => ({
+      t: a.allocatedAt,
+      text: a.holder ? `Allocated to ${a.holder.name}` : a.holderDepartment ? `Allocated to ${a.holderDepartment.name} (department)` : 'Allocated',
+      kind: 'alloc' as const,
+    })),
+    ...allocations
+      .filter((a) => a.returnedAt)
+      .map((a) => ({ t: a.returnedAt as string, text: `Returned${a.returnCondition ? ` — ${titleCase(a.returnCondition)}` : ''}`, kind: 'return' as const })),
+    ...maintenance.map((m) => ({ t: m.createdAt, text: `Maintenance: ${titleCase(m.status)}`, kind: 'maint' as const })),
+    ...transfers.map((tr) => ({
+      t: tr.createdAt,
+      text: `Transfer ${titleCase(tr.status)}${tr.toUser ? ` to ${tr.toUser.name}` : ''}`,
+      kind: 'transfer' as const,
+    })),
+  ]
+    .filter((e) => e.t)
+    .sort((a, b) => new Date(b.t).getTime() - new Date(a.t).getTime());
 
   return (
     <div className="animate-fade-in">
@@ -128,21 +158,17 @@ export default function AssetDetail() {
             {tab === 'overview' && (
               <div className="space-y-4">
                 <p className="micro-label">Lifecycle timeline</p>
-                {allocations.length === 0 && maintenance.length === 0 ? (
-                  <EmptyState title="No history yet" subtitle="Allocation and maintenance events will appear here." />
+                {timeline.length === 0 ? (
+                  <EmptyState title="No history yet" subtitle="Registration, allocation, return, maintenance and transfer events will appear here." />
                 ) : (
                   <ol className="relative space-y-4 border-l border-surface-border pl-5">
-                    {[...allocations.map((a) => ({ t: a.allocatedAt, text: `Allocated to ${a.holder?.name}`, kind: 'alloc' as const })),
-                      ...maintenance.map((m) => ({ t: m.createdAt, text: `Maintenance: ${titleCase(m.status)}`, kind: 'maint' as const }))]
-                      .sort((a, b) => new Date(b.t).getTime() - new Date(a.t).getTime())
-                      .slice(0, 12)
-                      .map((e, i) => (
-                        <li key={i}>
-                          <span className={`absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full ${e.kind === 'alloc' ? 'bg-accent-500' : 'bg-amber-500'}`} />
-                          <p className="text-sm text-ink-700">{e.text}</p>
-                          <p className="mt-0.5 font-mono text-[11px] text-ink-400">{fmtDateTime(e.t)}</p>
-                        </li>
-                      ))}
+                    {timeline.slice(0, 20).map((e, i) => (
+                      <li key={i}>
+                        <span className={`absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full ${DOT[e.kind] ?? 'bg-ink-400'}`} />
+                        <p className="text-sm text-ink-700">{e.text}</p>
+                        <p className="mt-0.5 font-mono text-[11px] text-ink-400">{fmtDateTime(e.t)}</p>
+                      </li>
+                    ))}
                   </ol>
                 )}
               </div>

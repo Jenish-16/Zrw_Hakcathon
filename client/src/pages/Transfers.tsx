@@ -14,6 +14,7 @@ const STATUS_FILTERS = ['', 'REQUESTED', 'COMPLETED', 'REJECTED'];
 export default function Transfers() {
   const { hasRole } = useAuth();
   const canDecide = hasRole('ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD');
+  const isAdmin = hasRole('ADMIN');
   const [status, setStatus] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [rejecting, setRejecting] = useState<TransferRequest | null>(null);
@@ -35,10 +36,10 @@ export default function Transfers() {
     <div className="animate-fade-in">
       <PageHeader
         title="Transfers"
-        subtitle="Reassign assets through a request → approval workflow."
+        subtitle={isAdmin ? 'Reassign assets directly — admins skip the approval step.' : 'Reassign assets through a request → approval workflow.'}
         actions={
           <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4" /> Request Transfer
+            <Plus className="h-4 w-4" /> {isAdmin ? 'Execute Transfer' : 'Request Transfer'}
           </Button>
         }
       />
@@ -131,8 +132,12 @@ export function RequestModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { data: assets } = useApi<Asset[]>('/assets');
-  const { data: users } = useApi<User[]>('/users?status=ACTIVE');
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole('ADMIN');
+  // Only currently-allocated assets can be transferred, and only employees who
+  // hold nothing are eligible recipients.
+  const { data: assets } = useApi<Asset[]>('/assets?status=ALLOCATED');
+  const { data: users } = useApi<User[]>('/users?status=ACTIVE&unallocated=true');
   const [assetId, setAssetId] = useState(presetAssetId);
   const [toUserId, setToUserId] = useState('');
   const [note, setNote] = useState('');
@@ -146,7 +151,8 @@ export function RequestModal({
     setLoading(true);
     try {
       await api.post('/transfers', { assetId, toUserId, note: note || undefined });
-      toast.success('Transfer request submitted');
+      // Admins execute directly (server completes it); everyone else files a request.
+      toast.success(isAdmin ? 'Transfer completed' : 'Transfer request submitted');
       onSaved();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -159,18 +165,18 @@ export function RequestModal({
     <Modal
       open
       onClose={onClose}
-      title="Request transfer"
-      subtitle="Ask to reassign an asset to another employee."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={loading}>Submit request</Button></>}
+      title={isAdmin ? 'Execute transfer' : 'Request transfer'}
+      subtitle={isAdmin ? 'Reassign an asset to another employee immediately.' : 'Ask to reassign an asset to another employee.'}
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={loading}>{isAdmin ? 'Execute transfer' : 'Submit request'}</Button></>}
     >
       <div className="space-y-4">
-        <Field label="Asset" required>
+        <Field label="Asset" required hint="Only currently-allocated assets can be transferred.">
           <Select value={assetId} onChange={(e) => setAssetId(e.target.value)}>
             <option value="">Select an asset</option>
             {assets?.map((a) => <option key={a.id} value={a.id}>{a.assetTag} — {a.name}</option>)}
           </Select>
         </Field>
-        <Field label="Transfer to" required>
+        <Field label="Transfer to" required hint="Only employees with no current allocation are shown.">
           <Select value={toUserId} onChange={(e) => setToUserId(e.target.value)}>
             <option value="">Select an employee</option>
             {users?.map((u) => <option key={u.id} value={u.id}>{u.name}{u.department ? ` · ${u.department.name}` : ''}</option>)}

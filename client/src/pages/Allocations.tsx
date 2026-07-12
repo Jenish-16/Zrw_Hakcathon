@@ -173,7 +173,8 @@ export default function Allocations() {
 
 function AllocateModal({ presetAssetId, onClose, onSaved }: { presetAssetId: string; onClose: () => void; onSaved: () => void }) {
   const { data: assets } = useApi<Asset[]>('/assets');
-  const { data: users } = useApi<User[]>('/users?status=ACTIVE');
+  // Only employees who currently hold nothing are eligible to receive an allocation.
+  const { data: users } = useApi<User[]>('/users?status=ACTIVE&unallocated=true');
   const { data: departments } = useApi<Department[]>('/departments');
   const [assetId, setAssetId] = useState(presetAssetId);
   const [holderType, setHolderType] = useState<'employee' | 'department'>('employee');
