@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
-import { badRequest, notFound } from '../utils/errors';
+import { badRequest, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
 import { notify, notifyMany, getManagerIds } from '../services/notify';
 
@@ -61,6 +61,11 @@ router.post(
       (asset.allocations ?? []).find((a: any) => a.status === 'ACTIVE')?.holder ?? null;
     if (currentHolder && currentHolder.id === data.toUserId) {
       throw badRequest(`${toUser.name} already holds this asset`);
+    }
+
+    // Employees may only request transfers of assets currently allocated to them.
+    if (req.user!.role === 'EMPLOYEE' && currentHolder?.id !== req.user!.id) {
+      throw forbidden('You can only request transfers for assets allocated to you');
     }
 
     // Admins are the highest authority — they skip the request→approval step and

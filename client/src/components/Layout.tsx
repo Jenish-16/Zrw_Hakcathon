@@ -36,27 +36,30 @@ interface NavGroup {
   items: NavItem[];
 }
 
+// Everyone except plain employees — the org-wide experience.
+const STAFF_ROLES: Role[] = ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'];
+
 const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
-    items: [{ to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> }],
+    items: [{ to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, roles: STAFF_ROLES }],
   },
   {
     label: 'Operations',
     items: [
       { to: '/assets', label: 'Assets', icon: <Boxes className="h-4 w-4" /> },
-      { to: '/allocations', label: 'Allocations', icon: <HandCoins className="h-4 w-4" /> },
+      { to: '/allocations', label: 'Allocations', icon: <HandCoins className="h-4 w-4" />, roles: STAFF_ROLES },
       { to: '/transfers', label: 'Transfers', icon: <ArrowLeftRight className="h-4 w-4" /> },
       { to: '/bookings', label: 'Bookings', icon: <CalendarDays className="h-4 w-4" /> },
       { to: '/maintenance', label: 'Maintenance', icon: <Wrench className="h-4 w-4" /> },
-      { to: '/audits', label: 'Audits', icon: <ClipboardCheck className="h-4 w-4" /> },
+      { to: '/audits', label: 'Audits', icon: <ClipboardCheck className="h-4 w-4" />, roles: STAFF_ROLES },
     ],
   },
   {
     label: 'Insight',
     items: [
-      { to: '/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" />, roles: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'] },
-      { to: '/activity', label: 'Activity Log', icon: <ScrollText className="h-4 w-4" /> },
+      { to: '/reports', label: 'Reports', icon: <BarChart3 className="h-4 w-4" />, roles: STAFF_ROLES },
+      { to: '/activity', label: 'Activity Log', icon: <ScrollText className="h-4 w-4" />, roles: STAFF_ROLES },
       { to: '/notifications', label: 'Notifications', icon: <Bell className="h-4 w-4" /> },
     ],
   },
@@ -73,9 +76,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
   useEffect(() => setMobileOpen(false), [location.pathname]);
 
+  const isEmployee = user?.role === 'EMPLOYEE';
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((n) => !n.roles || (user && n.roles.includes(user.role))),
+    items: g.items
+      .filter((n) => !n.roles || (user && n.roles.includes(user.role)))
+      // Employees only ever see their own assets, so label it accordingly.
+      .map((n) => (isEmployee && n.to === '/assets' ? { ...n, label: 'My Assets' } : n)),
   })).filter((g) => g.items.length > 0);
 
   return (

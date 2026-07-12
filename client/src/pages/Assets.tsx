@@ -43,6 +43,7 @@ export default function Assets() {
   const { data: departments } = useApi<Department[]>('/departments');
 
   const canManage = hasRole('ADMIN', 'ASSET_MANAGER');
+  const isEmployee = hasRole('EMPLOYEE');
 
   useEffect(() => {
     if (params.get('action') === 'new' && canManage) {
@@ -57,8 +58,12 @@ export default function Assets() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Assets"
-        subtitle="Register, search and track every asset through its lifecycle."
+        title={isEmployee ? 'My Assets' : 'Assets'}
+        subtitle={
+          isEmployee
+            ? 'The assets currently allocated to you.'
+            : 'Register, search and track every asset through its lifecycle.'
+        }
         actions={
           canManage && (
             <>
@@ -73,6 +78,7 @@ export default function Assets() {
         }
       />
 
+      {!isEmployee && (
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -99,12 +105,13 @@ export default function Assets() {
           <span className="font-mono text-xs tabular-nums text-ink-400">{assets?.length ?? 0} results</span>
         </div>
       </Card>
+      )}
 
       <Card className="overflow-hidden">
         {loading ? (
           <Spinner />
         ) : !assets || assets.length === 0 ? (
-          <EmptyState icon={<Package className="h-6 w-6" />} title="No assets found" subtitle="Try adjusting your filters or register a new asset." />
+          <EmptyState icon={<Package className="h-6 w-6" />} title="No assets found" subtitle={isEmployee ? 'You have no assets allocated to you yet.' : 'Try adjusting your filters or register a new asset.'} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px]">

@@ -5,7 +5,7 @@ import multer from 'multer';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
-import { badRequest, notFound } from '../utils/errors';
+import { badRequest, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
 import { notify, notifyMany, getManagerIds } from '../services/notify';
 
@@ -107,6 +107,19 @@ router.post(
       await supabase.from('Asset').select('*').eq('id', data.assetId).single()
     );
     if (!asset) throw notFound('Asset not found');
+
+    // Employees may only raise requests for assets currently allocated to them.
+    if (req.user!.role === 'EMPLOYEE') {
+      const mine = unwrap(
+        await supabase
+          .from('Allocation')
+          .select('id')
+          .eq('status', 'ACTIVE')
+          .eq('holderId', req.user!.id)
+          .eq('assetId', data.assetId)
+      ) as any[];
+      if (mine.length === 0) throw forbidden('You can only raise requests for assets allocated to you');
+    }
 
     const request = unwrap(
       await supabase

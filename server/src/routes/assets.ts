@@ -5,7 +5,7 @@ import multer from 'multer';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
-import { badRequest, notFound } from '../utils/errors';
+import { badRequest, forbidden, notFound } from '../utils/errors';
 import { logActivity } from '../services/activity';
 import { nextAssetTag } from '../services/assetTag';
 import { AssetStatus } from '../lib/types';
@@ -34,6 +34,15 @@ function activeHolder(allocations: any[] | undefined | null) {
   return (allocations ?? []).find((al) => al.status === 'ACTIVE')?.holder ?? null;
 }
 
+// Asset ids currently allocated to a user (personal ACTIVE allocations). Used to
+// scope what an EMPLOYEE is allowed to list/view — they only see their own assets.
+async function myAllocatedAssetIds(userId: string): Promise<string[]> {
+  const rows = unwrap(
+    await supabase.from('Allocation').select('assetId').eq('status', 'ACTIVE').eq('holderId', userId)
+  ) as { assetId: string }[];
+  return rows.map((r) => r.assetId);
+}
+
 // List + search/filter assets.
 router.get(
   '/',
@@ -50,6 +59,13 @@ router.get(
     if (department) q = q.eq('departmentId', department);
     if (location) q = q.ilike('location', `%${location}%`);
     if (bookable === 'true') q = q.eq('isBookable', true);
+
+    // Employees only ever see assets currently allocated to them.
+    if (req.user!.role === 'EMPLOYEE') {
+      const ids = await myAllocatedAssetIds(req.user!.id);
+      if (ids.length === 0) return res.json([]);
+      q = q.in('id', ids);
+    }
 
     const assets = unwrap(await q.order('createdAt', { ascending: false }));
 
@@ -113,6 +129,14 @@ router.get(
       await supabase.from('Asset').select(DETAIL_SELECT).eq('id', req.params.id).single()
     );
     if (!asset) throw notFound('Asset not found');
+
+    // Employees may only view assets currently allocated to them.
+    if (req.user!.role === 'EMPLOYEE') {
+      const isMine = (asset.allocations ?? []).some(
+        (al: any) => al.status === 'ACTIVE' && al.holderId === req.user!.id
+      );
+      if (!isMine) throw forbidden('You can only view assets allocated to you');
+    }
 
     // Order/limit child collections in JS (PostgREST embedded ordering is avoided).
     asset.allocations = (asset.allocations ?? []).sort(

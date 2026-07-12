@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { supabase, unwrap } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireRole } from '../middleware/auth';
 import { syncBookingStatuses } from '../services/sync';
 
 const router = Router();
@@ -17,6 +17,8 @@ const head = (table: string) => supabase.from(table).select('*', { count: 'exact
 
 router.get(
   '/',
+  // The org-wide dashboard is not for employees — they land on their own assets.
+  requireRole('ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'),
   asyncHandler(async (req, res) => {
     await syncBookingStatuses();
     const now = new Date();
