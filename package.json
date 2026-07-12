@@ -1,0 +1,20 @@
+{
+  "name": "assetflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AssetFlow — Enterprise Asset & Resource Management System",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n SERVER,CLIENT -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "npm run start -w server",
+    "db:seed": "npm run db:seed -w server",
+    "setup": "npm run db:seed -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
