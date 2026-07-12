@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import {
@@ -19,6 +19,7 @@ import { DashboardData } from '../lib/types';
 import { Card, Spinner, PageHeader, Badge, EmptyState } from '../components/ui';
 import { fromNow, fmtDate } from '../lib/format';
 import { titleCase } from '../lib/format';
+import { RegisterAssetDialog } from './Assets';
 
 // Status palette — fixed status job colors (validated set)
 const STATUS_COLORS: Record<string, string> = {
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const { user, hasRole } = useAuth();
   const { data, loading } = useApi<DashboardData>('/dashboard');
   const navigate = useNavigate();
+  const [showRegister, setShowRegister] = useState(false);
 
   if (loading || !data) return <Spinner label="Loading dashboard…" />;
 
@@ -73,7 +75,7 @@ export default function Dashboard() {
         actions={
           <>
             {hasRole('ADMIN', 'ASSET_MANAGER') && (
-              <button onClick={() => navigate('/assets?action=new')} className="btn-primary btn-sm">
+              <button onClick={() => setShowRegister(true)} className="btn-primary btn-sm">
                 <Plus className="h-4 w-4" /> Register asset
               </button>
             )}
@@ -229,6 +231,8 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+
+      {showRegister && <RegisterAssetDialog onClose={() => setShowRegister(false)} />}
     </div>
   );
 }

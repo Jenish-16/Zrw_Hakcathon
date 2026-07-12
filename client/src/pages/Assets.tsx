@@ -593,3 +593,23 @@ function AssetFormModal({
     </div>
   );
 }
+
+/**
+ * Full-screen "Register asset" dialog that fetches its own category/department
+ * options, so it can be opened from anywhere (e.g. the Dashboard) without
+ * navigating to the Assets page first. "Create" still routes to the new asset.
+ */
+export function RegisterAssetDialog({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
+  const { data: categories } = useApi<Category[]>('/categories');
+  const { data: departments } = useApi<Department[]>('/departments');
+  return (
+    <AssetFormModal
+      asset={null}
+      categories={categories ?? []}
+      departments={departments ?? []}
+      onClose={onClose}
+      onSaved={onClose}
+      onCreatedAnother={() => onCreated?.()}
+    />
+  );
+}
