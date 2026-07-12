@@ -33,12 +33,15 @@ import { initials, avatarColor, titleCase } from '../lib/format';
 
 const ROLES: Role[] = ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE'];
 
+const activeStatusStyle = 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20';
+const inactiveStatusStyle = 'bg-ink-500/10 text-ink-500 ring-ink-400/25';
+
 export default function Organization() {
   const [tab, setTab] = useState('departments');
   return (
     <div className="animate-fade-in">
       <PageHeader title="Organization Setup" subtitle="Maintain the master data everything else depends on." />
-      <div className="mb-5 max-w-xl">
+      <div className="mb-5">
         <Tabs
           active={tab}
           onChange={setTab}
@@ -103,26 +106,26 @@ function DepartmentsTab() {
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {departments.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50">
+                  <tr key={d.id} className="hover:bg-surface-muted">
                     <td className="table-cell">
-                      <p className="font-semibold text-slate-800">{d.name}</p>
-                      <p className="font-mono text-xs text-slate-400">{d.code}</p>
+                      <p className="font-medium text-ink-800">{d.name}</p>
+                      <p className="font-mono text-xs text-ink-400">{d.code}</p>
                     </td>
-                    <td className="table-cell text-slate-600">{d.head?.name ?? <span className="text-slate-300">—</span>}</td>
-                    <td className="table-cell text-slate-600">{d.parent?.name ?? <span className="text-slate-300">—</span>}</td>
-                    <td className="table-cell text-center text-slate-600">{d._count?.members ?? 0}</td>
-                    <td className="table-cell text-center text-slate-600">{d._count?.assets ?? 0}</td>
+                    <td className="table-cell text-ink-600">{d.head?.name ?? <span className="text-ink-300">—</span>}</td>
+                    <td className="table-cell text-ink-600">{d.parent?.name ?? <span className="text-ink-300">—</span>}</td>
+                    <td className="table-cell text-center font-mono text-[13px] tabular-nums text-ink-600">{d._count?.members ?? 0}</td>
+                    <td className="table-cell text-center font-mono text-[13px] tabular-nums text-ink-600">{d._count?.assets ?? 0}</td>
                     <td className="table-cell">
-                      <Badge className={d.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-500 ring-slate-500/20'}>
+                      <Badge className={d.status === 'ACTIVE' ? activeStatusStyle : inactiveStatusStyle}>
                         {titleCase(d.status)}
                       </Badge>
                     </td>
                     <td className="table-cell">
                       <div className="flex justify-end gap-1">
-                        <button onClick={() => setModal(d)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                        <button onClick={() => setModal(d)} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-900/5 hover:text-ink-600">
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button onClick={() => remove(d)} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                        <button onClick={() => remove(d)} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -250,22 +253,26 @@ function CategoriesTab() {
           {categories.map((c) => (
             <Card key={c.id} className="flex flex-col p-5">
               <div className="flex items-start justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><Tags className="h-5 w-5" /></div>
+                <div className="flex items-center gap-2">
+                  <Tags className="h-4 w-4 text-ink-400" />
+                  <h3 className="text-sm font-semibold tracking-tight text-ink-900">{c.name}</h3>
+                </div>
                 <div className="flex gap-1">
-                  <button onClick={() => setModal(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Pencil className="h-4 w-4" /></button>
-                  <button onClick={() => remove(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => setModal(c)} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-900/5 hover:text-ink-600"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => remove(c)} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
-              <h3 className="mt-3 font-semibold text-slate-900">{c.name}</h3>
-              <p className="mt-1 flex-1 text-sm text-slate-500">{c.description || 'No description'}</p>
+              <p className="mt-2 flex-1 text-[13px] text-ink-500">{c.description || 'No description'}</p>
               {c.customFields && c.customFields.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {c.customFields.map((f) => (
-                    <span key={f.key} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{f.label}</span>
+                    <span key={f.key} className="rounded-md bg-ink-900/5 px-2 py-0.5 text-xs font-medium text-ink-600">{f.label}</span>
                   ))}
                 </div>
               )}
-              <p className="mt-3 text-xs text-slate-400">{c._count?.assets ?? 0} assets</p>
+              <p className="mt-3 border-t border-surface-border pt-2.5 font-mono text-xs tabular-nums text-ink-400">
+                {c._count?.assets ?? 0} assets
+              </p>
             </Card>
           ))}
         </div>
@@ -332,10 +339,10 @@ function CategoryModal({ category, onClose, onSaved }: { category: Category | nu
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label className="label mb-0">Custom fields</label>
-            <button onClick={addField} className="text-sm font-medium text-brand-600 hover:text-brand-700">+ Add field</button>
+            <button onClick={addField} className="text-sm font-medium text-accent-600 hover:text-accent-700">+ Add field</button>
           </div>
           {fields.length === 0 ? (
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">No custom fields. Assets in this category use the standard fields only.</p>
+            <p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-400">No custom fields. Assets in this category use the standard fields only.</p>
           ) : (
             <div className="space-y-2">
               {fields.map((f, i) => (
@@ -347,7 +354,7 @@ function CategoryModal({ category, onClose, onSaved }: { category: Category | nu
                     <option value="date">Date</option>
                     <option value="boolean">Boolean</option>
                   </Select>
-                  <button onClick={() => removeField(i)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><X className="h-4 w-4" /></button>
+                  <button onClick={() => removeField(i)} className="rounded-md p-2 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"><X className="h-4 w-4" /></button>
                 </div>
               ))}
             </div>
@@ -398,9 +405,11 @@ function DirectoryTab() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-brand-800">
-        <ShieldAlert className="h-4 w-4 flex-shrink-0" />
-        New signups always start as <span className="font-semibold">Employees</span>. This directory is the only place roles are assigned — promote members to Department Head or Asset Manager here.
+      <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-surface-border bg-surface px-4 py-3 text-[13px] text-ink-600">
+        <ShieldAlert className="h-4 w-4 flex-shrink-0 text-ink-400" />
+        <span>
+          New signups always start as <span className="font-semibold text-ink-800">Employees</span>. This directory is the only place roles are assigned — promote members to Department Head or Asset Manager here.
+        </span>
       </div>
 
       <Card className="mb-4 p-4">
@@ -438,18 +447,18 @@ function DirectoryTab() {
                 {users.map((u) => {
                   const isSelf = u.id === user?.id;
                   return (
-                    <tr key={u.id} className="hover:bg-slate-50">
+                    <tr key={u.id} className="hover:bg-surface-muted">
                       <td className="table-cell">
                         <div className="flex items-center gap-3">
-                          <div className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(u.name)}`}>{initials(u.name)}</div>
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${avatarColor(u.name)}`}>{initials(u.name)}</div>
                           <div>
-                            <p className="font-semibold text-slate-800">{u.name}{isSelf && <span className="ml-1 text-xs text-slate-400">(you)</span>}</p>
-                            <p className="text-xs text-slate-400">{u.email}</p>
+                            <p className="font-medium text-ink-800">{u.name}{isSelf && <span className="ml-1 text-xs text-ink-400">(you)</span>}</p>
+                            <p className="font-mono text-xs text-ink-500">{u.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="table-cell text-slate-600">{u.department?.name ?? <span className="text-slate-300">—</span>}</td>
-                      <td className="table-cell text-slate-600">{u.jobTitle ?? <span className="text-slate-300">—</span>}</td>
+                      <td className="table-cell text-ink-600">{u.department?.name ?? <span className="text-ink-300">—</span>}</td>
+                      <td className="table-cell text-ink-600">{u.jobTitle ?? <span className="text-ink-300">—</span>}</td>
                       <td className="table-cell">
                         {isSelf ? (
                           <Badge className={roleStyle[u.role]}>{roleLabel[u.role]}</Badge>
@@ -457,20 +466,20 @@ function DirectoryTab() {
                           <select
                             value={u.role}
                             onChange={(e) => changeRole(u, e.target.value as Role)}
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-brand-500"
+                            className="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-ink-700 outline-none transition-colors focus:border-accent-500"
                           >
                             {ROLES.map((r) => <option key={r} value={r}>{roleLabel[r]}</option>)}
                           </select>
                         )}
                       </td>
                       <td className="table-cell">
-                        <Badge className={u.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-500 ring-slate-500/20'}>{titleCase(u.status)}</Badge>
+                        <Badge className={u.status === 'ACTIVE' ? activeStatusStyle : inactiveStatusStyle}>{titleCase(u.status)}</Badge>
                       </td>
                       <td className="table-cell text-right">
                         {!isSelf && (
                           <button
                             onClick={() => toggleStatus(u)}
-                            className={`text-xs font-semibold ${u.status === 'ACTIVE' ? 'text-rose-600 hover:text-rose-700' : 'text-emerald-600 hover:text-emerald-700'}`}
+                            className={`text-xs font-semibold ${u.status === 'ACTIVE' ? 'text-danger-600 hover:text-danger-700' : 'text-emerald-700 hover:text-emerald-800'}`}
                           >
                             {u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
                           </button>

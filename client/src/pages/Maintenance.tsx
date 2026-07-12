@@ -58,8 +58,8 @@ export default function Maintenance() {
           <button
             key={s || 'all'}
             onClick={() => setStatus(s)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              status === s ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-surface-border hover:bg-slate-50'
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              status === s ? 'bg-ink-900 text-white' : 'bg-surface text-ink-600 ring-1 ring-inset ring-surface-border hover:bg-surface-muted'
             }`}
           >
             {s ? titleCase(s) : 'All'}
@@ -77,8 +77,8 @@ export default function Maintenance() {
             <Card key={r.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-800">{r.asset?.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{r.asset?.assetTag}</p>
+                  <p className="text-sm font-semibold tracking-tight text-ink-900">{r.asset?.name}</p>
+                  <p className="font-mono text-xs tabular-nums text-ink-400">{r.asset?.assetTag}</p>
                 </div>
                 <div className="flex flex-shrink-0 gap-1.5">
                   <Badge className={priorityStyle[r.priority]}>{titleCase(r.priority)}</Badge>
@@ -86,14 +86,14 @@ export default function Maintenance() {
                 </div>
               </div>
 
-              <p className="mt-3 text-sm text-slate-600">{r.description}</p>
+              <p className="mt-3 text-[13px] text-ink-600">{r.description}</p>
 
               {r.status !== 'REJECTED' && <Stepper status={r.status} />}
 
-              <div className="mt-3 space-y-1 text-xs text-slate-400">
-                <p>Raised by <span className="font-medium text-slate-500">{r.raisedBy?.name}</span> · {fromNow(r.createdAt)}</p>
-                {r.technicianName && <p>Technician: <span className="font-medium text-slate-500">{r.technicianName}</span></p>}
-                {r.resolutionNotes && <p>Resolution: <span className="italic">{r.resolutionNotes}</span> {r.resolvedAt ? `(${fmtDate(r.resolvedAt)})` : ''}</p>}
+              <div className="mt-3 space-y-1 text-xs text-ink-400">
+                <p>Raised by <span className="font-medium text-ink-600">{r.raisedBy?.name}</span> · <span className="font-mono">{fromNow(r.createdAt)}</span></p>
+                {r.technicianName && <p>Technician: <span className="font-medium text-ink-600">{r.technicianName}</span></p>}
+                {r.resolutionNotes && <p>Resolution: <span className="italic">{r.resolutionNotes}</span> {r.resolvedAt ? <span className="font-mono tabular-nums">({fmtDate(r.resolvedAt)})</span> : ''}</p>}
                 {r.decisionNote && <p>Note: <span className="italic">{r.decisionNote}</span></p>}
               </div>
 
@@ -135,20 +135,21 @@ export default function Maintenance() {
 function Stepper({ status }: { status: MaintenanceStatus }) {
   const currentIndex = STEPS.indexOf(status);
   return (
-    <div className="mt-4 flex items-center">
-      {STEPS.map((step, i) => (
-        <div key={step} className="flex flex-1 items-center last:flex-none">
-          <div
-            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-              i <= currentIndex ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-400'
-            }`}
-            title={titleCase(step)}
-          >
-            {i + 1}
+    <div className="mt-4">
+      <div className="flex items-center">
+        {STEPS.map((step, i) => (
+          <div key={step} className="flex flex-1 items-center last:flex-none">
+            <span
+              title={titleCase(step)}
+              className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${i <= currentIndex ? 'bg-accent-500' : 'bg-ink-200'}`}
+            />
+            {i < STEPS.length - 1 && <span className={`h-px flex-1 ${i < currentIndex ? 'bg-accent-500' : 'bg-ink-100'}`} />}
           </div>
-          {i < STEPS.length - 1 && <div className={`h-0.5 flex-1 ${i < currentIndex ? 'bg-brand-500' : 'bg-slate-100'}`} />}
-        </div>
-      ))}
+        ))}
+      </div>
+      <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-ink-400">
+        Step {currentIndex + 1} of {STEPS.length} · {titleCase(status)}
+      </p>
     </div>
   );
 }

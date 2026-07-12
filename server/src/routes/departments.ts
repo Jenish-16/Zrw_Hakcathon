@@ -9,8 +9,22 @@ import { logActivity } from '../services/activity';
 const router = Router();
 router.use(authenticate);
 
-const RELATIONS =
-  '*, head:User!Department_headId_fkey(id,name,email), parent:Department!Department_parentId_fkey(id,name,code)';
+const RELATIONS = '*, head:User!Department_headId_fkey(id,name,email)';
+
+/**
+ * Attach the `parent` relation manually. A self-referential PostgREST embed
+ * needs the parentId FK constraint present in the schema cache, which is not
+ * guaranteed (partial schema.sql runs) — a direct lookup always works.
+ */
+async function withParent<T extends { parentId?: string | null }>(dept: T) {
+  let parent: { id: string; name: string; code: string } | null = null;
+  if (dept.parentId) {
+    parent = unwrapMaybe<{ id: string; name: string; code: string }>(
+      await supabase.from('Department').select('id,name,code').eq('id', dept.parentId).single()
+    );
+  }
+  return { ...dept, parent };
+}
 
 /** Count the linked records the Prisma `_count` relation used to provide. */
 async function countsFor(deptId: string) {
@@ -26,8 +40,9 @@ async function countsFor(deptId: string) {
   };
 }
 
-async function withCounts<T extends { id: string }>(dept: T) {
-  return { ...dept, _count: await countsFor(dept.id) };
+async function withCounts<T extends { id: string; parentId?: string | null }>(dept: T) {
+  const shaped = await withParent(dept);
+  return { ...shaped, _count: await countsFor(dept.id) };
 }
 
 router.get(
@@ -36,7 +51,9 @@ router.get(
     const departments = unwrap(
       await supabase.from('Department').select(RELATIONS).order('name', { ascending: true })
     );
-    const shaped = await Promise.all((departments as { id: string }[]).map(withCounts));
+    const shaped = await Promise.all(
+      (departments as { id: string; parentId?: string | null }[]).map(withCounts)
+    );
     res.json(shaped);
   })
 );

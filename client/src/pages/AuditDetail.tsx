@@ -62,16 +62,16 @@ export default function AuditDetail() {
   };
 
   const tiles = [
-    { label: 'Total', value: total, cls: 'bg-slate-50 text-slate-700' },
-    { label: 'Verified', value: counts.VERIFIED, cls: 'bg-emerald-50 text-emerald-700' },
-    { label: 'Missing', value: counts.MISSING, cls: 'bg-rose-50 text-rose-700' },
-    { label: 'Damaged', value: counts.DAMAGED, cls: 'bg-amber-50 text-amber-700' },
-    { label: 'Pending', value: counts.PENDING, cls: 'bg-slate-50 text-slate-500' },
+    { label: 'Total', value: total, dot: 'bg-ink-400' },
+    { label: 'Verified', value: counts.VERIFIED, dot: 'bg-emerald-600' },
+    { label: 'Missing', value: counts.MISSING, dot: 'bg-danger-600' },
+    { label: 'Damaged', value: counts.DAMAGED, dot: 'bg-amber-500' },
+    { label: 'Pending', value: counts.PENDING, dot: 'bg-ink-300' },
   ];
 
   return (
     <div className="animate-fade-in">
-      <button onClick={() => navigate('/audits')} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700">
+      <button onClick={() => navigate('/audits')} className="mb-4 flex items-center gap-1.5 text-[13px] font-medium text-ink-500 transition-colors hover:text-ink-700">
         <ArrowLeft className="h-4 w-4" /> Back to audits
       </button>
 
@@ -79,17 +79,17 @@ export default function AuditDetail() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">{cycle.name}</h1>
-              <Badge className={cycle.status === 'OPEN' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/20'}>
+              <h1 className="text-xl font-semibold tracking-tight text-ink-900">{cycle.name}</h1>
+              <Badge className={cycle.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20' : 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>
                 {cycle.status}
               </Badge>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-[13px] text-ink-500">
               <span className="flex items-center gap-1.5">
-                {cycle.scopeType === 'DEPARTMENT' ? <Building2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+                {cycle.scopeType === 'DEPARTMENT' ? <Building2 className="h-4 w-4 text-ink-400" /> : <MapPin className="h-4 w-4 text-ink-400" />}
                 {cycle.scopeType === 'DEPARTMENT' ? 'Department scope' : cycle.scopeValue}
               </span>
-              <span className="flex items-center gap-1.5"><CalendarRange className="h-4 w-4" /> {fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}</span>
+              <span className="flex items-center gap-1.5"><CalendarRange className="h-4 w-4 text-ink-400" /> <span className="font-mono tabular-nums">{fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}</span></span>
               {cycle.createdBy && <span>Created by {cycle.createdBy.name}</span>}
             </div>
           </div>
@@ -102,10 +102,10 @@ export default function AuditDetail() {
 
         {(cycle.assignments ?? []).length > 0 && (
           <div className="mt-4 flex items-center gap-2">
-            <span className="text-xs text-slate-400">Auditors:</span>
+            <span className="text-xs text-ink-400">Auditors:</span>
             <div className="flex -space-x-2">
               {cycle.assignments!.map((a) => (
-                <div key={a.id} title={a.auditor.name} className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-white ${avatarColor(a.auditor.name)}`}>
+                <div key={a.id} title={a.auditor.name} className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-surface ${avatarColor(a.auditor.name)}`}>
                   {initials(a.auditor.name)}
                 </div>
               ))}
@@ -115,8 +115,8 @@ export default function AuditDetail() {
       </Card>
 
       {cycle.status === 'CLOSED' && (
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-          <Lock className="h-5 w-5 text-slate-400" />
+        <div className="mt-4 flex items-center gap-2.5 rounded-lg border border-surface-border bg-surface-muted px-4 py-3 text-[13px] text-ink-600">
+          <Lock className="h-4 w-4 text-ink-400" />
           This cycle is closed and locked. Verification is read-only.{cycle.closedAt ? ` Closed ${fmtDate(cycle.closedAt)}.` : ''}
         </div>
       )}
@@ -124,9 +124,12 @@ export default function AuditDetail() {
       {/* Summary tiles */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
         {tiles.map((t) => (
-          <Card key={t.label} className={`p-4 ${t.cls}`}>
-            <p className="text-2xl font-bold">{t.value}</p>
-            <p className="text-xs font-medium opacity-80">{t.label}</p>
+          <Card key={t.label} className="p-4">
+            <div className="flex items-center gap-1.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />
+              <p className="micro-label">{t.label}</p>
+            </div>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums text-ink-900">{t.value}</p>
           </Card>
         ))}
       </div>
@@ -134,7 +137,7 @@ export default function AuditDetail() {
       {/* Items */}
       <Card className="mt-4 overflow-hidden">
         <div className="border-b border-surface-border px-5 py-3">
-          <h3 className="font-semibold text-slate-900">Assets in scope</h3>
+          <h3 className="micro-label">Assets in scope</h3>
         </div>
         {items.length === 0 ? (
           <EmptyState title="No assets in this cycle" />
@@ -152,28 +155,28 @@ export default function AuditDetail() {
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
+                  <tr key={item.id} className="transition-colors hover:bg-surface-muted">
                     <td className="table-cell">
-                      <p className="font-semibold text-slate-800">{item.asset?.name}</p>
-                      <p className="font-mono text-xs text-slate-400">{item.asset?.assetTag}</p>
-                      {item.notes && <p className="mt-0.5 text-xs italic text-slate-400">“{item.notes}”</p>}
+                      <p className="text-sm font-medium text-ink-800">{item.asset?.name}</p>
+                      <p className="font-mono text-xs tabular-nums text-ink-400">{item.asset?.assetTag}</p>
+                      {item.notes && <p className="mt-0.5 text-xs italic text-ink-400">“{item.notes}”</p>}
                     </td>
-                    <td className="table-cell text-slate-600">{item.asset?.location ?? '—'}</td>
+                    <td className="table-cell text-ink-600">{item.asset?.location ?? '—'}</td>
                     <td className="table-cell"><Badge className={auditItemStyle[item.status]}>{item.status}</Badge></td>
-                    <td className="table-cell text-slate-500">
+                    <td className="table-cell text-ink-500">
                       {item.auditedBy ? `${item.auditedBy.name}` : '—'}
-                      {item.auditedAt && <span className="block text-xs text-slate-400">{fmtDateTime(item.auditedAt)}</span>}
+                      {item.auditedAt && <span className="block font-mono text-xs tabular-nums text-ink-400">{fmtDateTime(item.auditedAt)}</span>}
                     </td>
                     {canAudit && (
                       <td className="table-cell">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => mark(item, 'VERIFIED')} title="Verified" className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50">
+                          <button onClick={() => mark(item, 'VERIFIED')} title="Verified" className="rounded-md p-1.5 text-emerald-700 transition-colors hover:bg-emerald-500/10">
                             <CheckCircle2 className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setNotesModal({ item, status: 'DAMAGED' })} title="Damaged" className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50">
+                          <button onClick={() => setNotesModal({ item, status: 'DAMAGED' })} title="Damaged" className="rounded-md p-1.5 text-amber-700 transition-colors hover:bg-amber-500/10">
                             <AlertTriangle className="h-4 w-4" />
                           </button>
-                          <button onClick={() => setNotesModal({ item, status: 'MISSING' })} title="Missing" className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50">
+                          <button onClick={() => setNotesModal({ item, status: 'MISSING' })} title="Missing" className="rounded-md p-1.5 text-danger-600 transition-colors hover:bg-danger-50">
                             <XCircle className="h-4 w-4" />
                           </button>
                         </div>
@@ -190,22 +193,22 @@ export default function AuditDetail() {
       {/* Discrepancy report */}
       <Card className="mt-4 p-5">
         <div className="mb-3 flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-rose-500" />
-          <h3 className="font-semibold text-slate-900">Discrepancy Report</h3>
-          <Badge className="bg-rose-50 text-rose-700 ring-rose-600/20">{discrepancies.length}</Badge>
+          <AlertTriangle className="h-4 w-4 text-danger-600" />
+          <h3 className="micro-label">Discrepancy Report</h3>
+          <Badge dot={false} className="bg-danger-600/10 font-mono tabular-nums text-danger-700 ring-danger-600/20">{discrepancies.length}</Badge>
         </div>
         {discrepancies.length === 0 ? (
-          <p className="rounded-xl bg-emerald-50 px-4 py-6 text-center text-sm text-emerald-700">No discrepancies flagged. 🎉</p>
+          <p className="rounded-lg border border-dashed border-ink-200 px-4 py-6 text-center text-[13px] text-ink-500">No discrepancies flagged.</p>
         ) : (
           <ul className="divide-y divide-surface-border">
             {discrepancies.map((d) => (
               <li key={d.id} className="flex items-start justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{d.asset?.assetTag} · {d.asset?.name}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-sm font-medium text-ink-800"><span className="font-mono text-[13px] tabular-nums">{d.asset?.assetTag}</span> · {d.asset?.name}</p>
+                  <p className="text-xs text-ink-400">
                     {d.asset?.location ?? '—'}{d.auditedBy ? ` · flagged by ${d.auditedBy.name}` : ''}
                   </p>
-                  {d.notes && <p className="mt-0.5 text-xs italic text-slate-500">“{d.notes}”</p>}
+                  {d.notes && <p className="mt-0.5 text-xs italic text-ink-500">“{d.notes}”</p>}
                 </div>
                 <Badge className={auditItemStyle[d.status]}>{d.status}</Badge>
               </li>
@@ -222,11 +225,11 @@ export default function AuditDetail() {
           subtitle="This locks the cycle and updates affected asset statuses."
           footer={<><Button variant="secondary" onClick={() => setShowClose(false)}>Cancel</Button><Button variant="danger" onClick={closeCycle} loading={closing}>Close cycle</Button></>}
         >
-          <p className="text-sm text-slate-600">
-            Confirmed-missing assets will be marked <span className="font-semibold text-rose-600">Lost</span> and damaged assets will
-            have their condition set to <span className="font-semibold text-amber-600">Damaged</span>. This cannot be undone.
+          <p className="text-[13px] text-ink-600">
+            Confirmed-missing assets will be marked <span className="font-semibold text-danger-600">Lost</span> and damaged assets will
+            have their condition set to <span className="font-semibold text-amber-700">Damaged</span>. This cannot be undone.
           </p>
-          <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+          <div className="mt-3 rounded-lg bg-surface-muted p-3 font-mono text-[13px] tabular-nums text-ink-600">
             {counts.MISSING} missing · {counts.DAMAGED} damaged · {counts.PENDING} still pending verification
           </div>
         </Modal>

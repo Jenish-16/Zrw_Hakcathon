@@ -43,10 +43,31 @@ interface ReportData {
   totals: { totalAssets: number; totalValue: number; totalMaintenance: number; totalBookings: number };
 }
 
-const PALETTE = ['#1f42f5', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f43f5e'];
-const BRAND = '#1f42f5';
+// Fixed categorical order (validated palette) — extras fold into "Other" gray.
+const CATEGORICAL = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];
+const OTHER = '#c3c2b7';
+const MEASURE_BLUE = '#2a78d6'; // single-measure bars use one hue
+// Sequential blue ramp for the heatmap (light → dark)
+const HEAT_RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#0d366b'];
+
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7:00 – 20:00
+
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    background: '#191713',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12,
+    color: '#f6f5f1',
+    boxShadow: '0 8px 24px -8px rgba(19,18,17,.35)',
+  },
+  labelStyle: { color: '#b5b2a9', fontWeight: 600 },
+  itemStyle: { color: '#f6f5f1' },
+} as const;
+
+const AXIS_TICK = { fontSize: 11, fill: '#8a8880' } as const;
+const BAR_CURSOR = { fill: 'rgba(25,23,19,0.04)' } as const;
 
 export default function Reports() {
   const { data, loading } = useApi<ReportData>('/reports/overview');
@@ -72,23 +93,35 @@ export default function Reports() {
     }
   };
 
-  if (loading || !data) return <Spinner label="Crunching analytics..." />;
+  if (loading || !data) return <Spinner label="Loading reports…" />;
 
   const maxHeat = Math.max(1, ...data.heatmap.map((h) => h.count));
   const heatLookup = new Map(data.heatmap.map((h) => [`${h.day}-${h.hour}`, h.count]));
+  const heatColor = (count: number) => {
+    if (count === 0) return '#f6f5f1';
+    const idx = Math.min(HEAT_RAMP.length - 1, Math.ceil((count / maxHeat) * HEAT_RAMP.length) - 1);
+    return HEAT_RAMP[idx];
+  };
+  const heatInk = (count: number) => {
+    if (count === 0) return '#8a8880';
+    const idx = Math.min(HEAT_RAMP.length - 1, Math.ceil((count / maxHeat) * HEAT_RAMP.length) - 1);
+    return idx >= 3 ? '#ffffff' : '#191713';
+  };
+
+  const categoryTotal = data.categoryDistribution.reduce((s, c) => s + c.count, 0);
 
   const kpis = [
-    { label: 'Total Assets', value: data.totals.totalAssets, icon: <Boxes className="h-5 w-5" />, tone: 'text-brand-600 bg-brand-50' },
-    { label: 'Total Value', value: fmtCurrency(data.totals.totalValue), icon: <IndianRupee className="h-5 w-5" />, tone: 'text-emerald-600 bg-emerald-50' },
-    { label: 'Maintenance Requests', value: data.totals.totalMaintenance, icon: <Wrench className="h-5 w-5" />, tone: 'text-amber-600 bg-amber-50' },
-    { label: 'Bookings', value: data.totals.totalBookings, icon: <CalendarDays className="h-5 w-5" />, tone: 'text-violet-600 bg-violet-50' },
+    { label: 'Total assets', value: String(data.totals.totalAssets), icon: <Boxes className="h-4 w-4" /> },
+    { label: 'Total value', value: fmtCurrency(data.totals.totalValue), icon: <IndianRupee className="h-4 w-4" /> },
+    { label: 'Maintenance requests', value: String(data.totals.totalMaintenance), icon: <Wrench className="h-4 w-4" /> },
+    { label: 'Bookings', value: String(data.totals.totalBookings), icon: <CalendarDays className="h-4 w-4" /> },
   ];
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Reports & Analytics"
-        subtitle="Actionable operational insight across your asset portfolio."
+        subtitle="Operational insight across the asset portfolio."
         actions={
           <>
             <Button variant="secondary" size="sm" loading={exporting === 'assets'} onClick={() => exportCsv('assets')}>
@@ -105,30 +138,32 @@ export default function Reports() {
       />
 
       {/* Totals */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((c) => (
           <Card key={c.label} className="p-4">
-            <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${c.tone}`}>{c.icon}</div>
-            <p className="mt-3 text-2xl font-bold text-slate-900">{c.value}</p>
-            <p className="text-xs font-medium text-slate-500">{c.label}</p>
+            <div className="flex items-center justify-between">
+              <p className="micro-label">{c.label}</p>
+              <span className="text-ink-300">{c.icon}</span>
+            </div>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-ink-900">{c.value}</p>
           </Card>
         ))}
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Most used assets */}
-        <ChartCard icon={<TrendingUp className="h-4 w-4" />} title="Most Used Assets" subtitle="By number of allocations">
+        <ChartCard icon={<TrendingUp className="h-4 w-4" />} title="Most used assets" subtitle="By number of allocations">
           {data.mostUsed.length === 0 ? (
             <EmptyState title="No allocation data" />
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.mostUsed} layout="vertical" margin={{ left: 8, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eef2f7" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fill: '#475569' }} />
-                  <Tooltip cursor={{ fill: '#f1f5f9' }} />
-                  <Bar dataKey="timesAllocated" name="Allocations" fill={BRAND} radius={[0, 6, 6, 0]} barSize={16} />
+                  <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e1e0d9" />
+                  <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" width={130} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <Tooltip {...TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+                  <Bar dataKey="timesAllocated" name="Allocations" fill={MEASURE_BLUE} radius={[0, 4, 4, 0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -136,49 +171,68 @@ export default function Reports() {
         </ChartCard>
 
         {/* Category distribution */}
-        <ChartCard icon={<PieIcon className="h-4 w-4" />} title="Category Distribution" subtitle="Assets per category">
+        <ChartCard icon={<PieIcon className="h-4 w-4" />} title="Category distribution" subtitle="Assets per category">
           {data.categoryDistribution.length === 0 ? (
             <EmptyState title="No categories" />
           ) : (
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.categoryDistribution}
-                    dataKey="count"
-                    nameKey="category"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={95}
-                    paddingAngle={2}
-                    label={(e) => `${e.category} (${e.count})`}
-                    labelLine={false}
-                  >
-                    {data.categoryDistribution.map((_, i) => (
-                      <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex h-72 flex-col items-center gap-4 sm:flex-row">
+              <div className="relative h-48 w-48 flex-shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={data.categoryDistribution}
+                      dataKey="count"
+                      nameKey="category"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="62%"
+                      outerRadius="80%"
+                      paddingAngle={2}
+                      stroke="#fcfcfb"
+                      strokeWidth={2}
+                    >
+                      {data.categoryDistribution.map((_, i) => (
+                        <Cell key={i} fill={i < CATEGORICAL.length ? CATEGORICAL[i] : OTHER} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...TOOLTIP_STYLE} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-2xl font-semibold tabular-nums text-ink-900">{categoryTotal}</p>
+                  <p className="micro-label">Assets</p>
+                </div>
+              </div>
+              <ul className="w-full min-w-0 flex-1 space-y-1.5 overflow-y-auto">
+                {data.categoryDistribution.map((c, i) => (
+                  <li key={c.category} className="flex items-center gap-2 text-[13px]">
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: i < CATEGORICAL.length ? CATEGORICAL[i] : OTHER }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-ink-600">{c.category}</span>
+                    <span className="font-mono tabular-nums text-ink-800">{c.count}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </ChartCard>
 
         {/* Maintenance by category */}
-        <ChartCard icon={<Layers className="h-4 w-4" />} title="Maintenance Frequency" subtitle="Requests by asset category">
+        <ChartCard icon={<Layers className="h-4 w-4" />} title="Maintenance frequency" subtitle="Requests by asset category">
           {data.maintenanceByCategory.length === 0 ? (
             <EmptyState title="No maintenance data" />
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.maintenanceByCategory} margin={{ left: 0, right: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                  <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#475569' }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip cursor={{ fill: '#f1f5f9' }} />
-                  <Bar dataKey="count" name="Requests" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={38} />
+                  <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e1e0d9" />
+                  <XAxis dataKey="category" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <Tooltip {...TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+                  <Bar dataKey="count" name="Requests" fill={MEASURE_BLUE} radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -186,18 +240,18 @@ export default function Reports() {
         </ChartCard>
 
         {/* Department allocation */}
-        <ChartCard icon={<Building2 className="h-4 w-4" />} title="Department-wise Allocation" subtitle="Active allocations by department">
+        <ChartCard icon={<Building2 className="h-4 w-4" />} title="Department-wise allocation" subtitle="Active allocations by department">
           {data.departmentAllocation.length === 0 ? (
             <EmptyState title="No allocations" />
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.departmentAllocation} margin={{ left: 0, right: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                  <XAxis dataKey="department" tick={{ fontSize: 11, fill: '#475569' }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip cursor={{ fill: '#f1f5f9' }} />
-                  <Bar dataKey="count" name="Assets" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={38} />
+                  <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e1e0d9" />
+                  <XAxis dataKey="department" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <Tooltip {...TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+                  <Bar dataKey="count" name="Assets" fill={MEASURE_BLUE} radius={[4, 4, 0, 0]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -206,7 +260,7 @@ export default function Reports() {
       </div>
 
       {/* Booking heatmap */}
-      <ChartCard className="mt-4" icon={<Flame className="h-4 w-4" />} title="Resource Booking Heatmap" subtitle="Peak usage windows (by weekday & hour)">
+      <ChartCard className="mt-4" icon={<Flame className="h-4 w-4" />} title="Resource booking heatmap" subtitle="Peak usage windows by weekday and hour">
         {data.heatmap.length === 0 ? (
           <EmptyState title="No bookings yet" />
         ) : (
@@ -215,24 +269,20 @@ export default function Reports() {
               <div className="flex">
                 <div className="w-12" />
                 {HOURS.map((h) => (
-                  <div key={h} className="flex-1 text-center text-[10px] font-medium text-slate-400">{h}:00</div>
+                  <div key={h} className="flex-1 text-center font-mono text-[10px] uppercase text-ink-400">{h}:00</div>
                 ))}
               </div>
               {DAYS.map((day, di) => (
                 <div key={day} className="flex items-center">
-                  <div className="w-12 py-1 text-xs font-semibold text-slate-500">{day}</div>
+                  <div className="w-12 py-1 font-mono text-[10px] uppercase text-ink-400">{day}</div>
                   {HOURS.map((h) => {
                     const count = heatLookup.get(`${di}-${h}`) ?? 0;
-                    const opacity = count === 0 ? 0 : 0.15 + (count / maxHeat) * 0.85;
                     return (
-                      <div key={h} className="flex-1 px-0.5 py-0.5">
+                      <div key={h} className="flex-1 p-[1px]">
                         <div
                           title={`${day} ${h}:00 — ${count} booking${count === 1 ? '' : 's'}`}
-                          className="flex h-7 items-center justify-center rounded-md text-[10px] font-semibold"
-                          style={{
-                            backgroundColor: count === 0 ? '#f1f5f9' : `rgba(31,66,245,${opacity})`,
-                            color: opacity > 0.5 ? '#fff' : '#334155',
-                          }}
+                          className="flex h-7 items-center justify-center rounded-[3px] font-mono text-[10px]"
+                          style={{ backgroundColor: heatColor(count), color: heatInk(count) }}
                         >
                           {count || ''}
                         </div>
@@ -249,22 +299,22 @@ export default function Reports() {
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Idle assets */}
         <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <Moon className="h-4 w-4 text-slate-400" />
-            <h3 className="font-semibold text-slate-900">Idle Assets</h3>
-            <Badge className="bg-slate-100 text-slate-600 ring-slate-500/20">{data.idle.length}</Badge>
+          <div className="mb-2 flex items-center gap-2">
+            <Moon className="h-4 w-4 text-ink-300" />
+            <p className="micro-label">Idle assets</p>
+            <Badge dot={false} className="bg-ink-500/10 text-ink-600 ring-ink-400/25">{data.idle.length}</Badge>
           </div>
           {data.idle.length === 0 ? (
-            <EmptyState title="Every asset has been used 🎉" />
+            <EmptyState title="Every asset has seen use" />
           ) : (
             <ul className="divide-y divide-surface-border">
               {data.idle.map((a) => (
                 <li key={a.id} className="flex items-center justify-between py-2.5">
                   <div>
-                    <p className="text-sm font-medium text-slate-800">{a.name}</p>
-                    <p className="font-mono text-xs text-slate-400">{a.assetTag} · {a.category}</p>
+                    <p className="text-[13px] font-medium text-ink-800">{a.name}</p>
+                    <p className="font-mono text-xs text-ink-400">{a.assetTag} · {a.category}</p>
                   </div>
-                  <Badge className={assetStatusStyle[a.status] ?? 'bg-slate-100 text-slate-600 ring-slate-500/20'}>{titleCase(a.status)}</Badge>
+                  <Badge className={assetStatusStyle[a.status] ?? 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>{titleCase(a.status)}</Badge>
                 </li>
               ))}
             </ul>
@@ -273,10 +323,10 @@ export default function Reports() {
 
         {/* Nearing retirement */}
         <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <h3 className="font-semibold text-slate-900">Nearing Retirement / Due for Maintenance</h3>
-            <Badge className="bg-amber-50 text-amber-700 ring-amber-600/20">{data.nearingRetirement.length}</Badge>
+          <div className="mb-2 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-ink-300" />
+            <p className="micro-label">Nearing retirement / due for maintenance</p>
+            <Badge dot={false} className="bg-amber-500/10 text-amber-800 ring-amber-600/25">{data.nearingRetirement.length}</Badge>
           </div>
           {data.nearingRetirement.length === 0 ? (
             <EmptyState title="Nothing needs attention" />
@@ -285,12 +335,12 @@ export default function Reports() {
               {data.nearingRetirement.map((a) => (
                 <li key={a.id} className="flex items-center justify-between py-2.5">
                   <div>
-                    <p className="text-sm font-medium text-slate-800">{a.name}</p>
-                    <p className="font-mono text-xs text-slate-400">
+                    <p className="text-[13px] font-medium text-ink-800">{a.name}</p>
+                    <p className="font-mono text-xs text-ink-400">
                       {a.assetTag} · {a.category} · acquired {fmtDate(a.acquisitionDate)}
                     </p>
                   </div>
-                  <Badge className={conditionStyle[a.condition] ?? 'bg-slate-100 text-slate-600 ring-slate-500/20'}>{titleCase(a.condition)}</Badge>
+                  <Badge className={conditionStyle[a.condition] ?? 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>{titleCase(a.condition)}</Badge>
                 </li>
               ))}
             </ul>
@@ -316,11 +366,11 @@ function ChartCard({
 }) {
   return (
     <Card className={`p-5 ${className}`}>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-slate-400">{icon}</span>
+      <div className="mb-3 flex items-start gap-2">
+        <span className="mt-0.5 text-ink-300">{icon}</span>
         <div>
-          <h3 className="font-semibold text-slate-900">{title}</h3>
-          {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+          <h3 className="text-sm font-semibold tracking-tight text-ink-900">{title}</h3>
+          {subtitle && <p className="text-xs text-ink-400">{subtitle}</p>}
         </div>
       </div>
       {children}

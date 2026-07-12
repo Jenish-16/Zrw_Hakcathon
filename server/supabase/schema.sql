@@ -232,34 +232,95 @@ create table if not exists "ActivityLog" (
 );
 
 -- --- Foreign keys (named to match supabase-js embedded selects) ------------
-alter table "User"            add constraint "User_departmentId_fkey"            foreign key ("departmentId")   references "Department"(id);
-alter table "Department"      add constraint "Department_headId_fkey"            foreign key ("headId")         references "User"(id);
-alter table "Department"      add constraint "Department_parentId_fkey"          foreign key ("parentId")       references "Department"(id);
-alter table "Asset"           add constraint "Asset_categoryId_fkey"             foreign key ("categoryId")     references "AssetCategory"(id);
-alter table "Asset"           add constraint "Asset_departmentId_fkey"           foreign key ("departmentId")   references "Department"(id);
-alter table "Allocation"      add constraint "Allocation_assetId_fkey"           foreign key ("assetId")        references "Asset"(id);
-alter table "Allocation"      add constraint "Allocation_holderId_fkey"          foreign key ("holderId")       references "User"(id);
-alter table "Allocation"      add constraint "Allocation_allocatedById_fkey"     foreign key ("allocatedById")  references "User"(id);
-alter table "TransferRequest" add constraint "TransferRequest_assetId_fkey"      foreign key ("assetId")        references "Asset"(id);
-alter table "TransferRequest" add constraint "TransferRequest_fromUserId_fkey"   foreign key ("fromUserId")     references "User"(id);
-alter table "TransferRequest" add constraint "TransferRequest_toUserId_fkey"     foreign key ("toUserId")       references "User"(id);
-alter table "TransferRequest" add constraint "TransferRequest_requestedById_fkey" foreign key ("requestedById") references "User"(id);
-alter table "TransferRequest" add constraint "TransferRequest_approvedById_fkey" foreign key ("approvedById")   references "User"(id);
-alter table "Booking"         add constraint "Booking_resourceId_fkey"           foreign key ("resourceId")     references "Asset"(id);
-alter table "Booking"         add constraint "Booking_bookedById_fkey"           foreign key ("bookedById")     references "User"(id);
-alter table "MaintenanceRequest" add constraint "MaintenanceRequest_assetId_fkey"     foreign key ("assetId")     references "Asset"(id);
-alter table "MaintenanceRequest" add constraint "MaintenanceRequest_raisedById_fkey"  foreign key ("raisedById")  references "User"(id);
-alter table "MaintenanceRequest" add constraint "MaintenanceRequest_approvedById_fkey" foreign key ("approvedById") references "User"(id);
-alter table "AuditCycle"      add constraint "AuditCycle_createdById_fkey"        foreign key ("createdById")    references "User"(id);
-alter table "AuditAssignment" add constraint "AuditAssignment_cycleId_fkey"       foreign key ("cycleId")        references "AuditCycle"(id) on delete cascade;
-alter table "AuditAssignment" add constraint "AuditAssignment_auditorId_fkey"     foreign key ("auditorId")      references "User"(id);
-alter table "AuditItem"       add constraint "AuditItem_cycleId_fkey"             foreign key ("cycleId")        references "AuditCycle"(id) on delete cascade;
-alter table "AuditItem"       add constraint "AuditItem_assetId_fkey"             foreign key ("assetId")        references "Asset"(id);
-alter table "AuditItem"       add constraint "AuditItem_auditedById_fkey"         foreign key ("auditedById")    references "User"(id);
-alter table "Notification"    add constraint "Notification_userId_fkey"           foreign key ("userId")         references "User"(id);
-alter table "ActivityLog"     add constraint "ActivityLog_userId_fkey"            foreign key ("userId")         references "User"(id);
+-- Each is guarded so the script is idempotent: re-running it repairs any
+-- constraint that a previous partial run left missing.
+do $$ begin
+  alter table "User"            add constraint "User_departmentId_fkey"            foreign key ("departmentId")   references "Department"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Department"      add constraint "Department_headId_fkey"            foreign key ("headId")         references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Department"      add constraint "Department_parentId_fkey"          foreign key ("parentId")       references "Department"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Asset"           add constraint "Asset_categoryId_fkey"             foreign key ("categoryId")     references "AssetCategory"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Asset"           add constraint "Asset_departmentId_fkey"           foreign key ("departmentId")   references "Department"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Allocation"      add constraint "Allocation_assetId_fkey"           foreign key ("assetId")        references "Asset"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Allocation"      add constraint "Allocation_holderId_fkey"          foreign key ("holderId")       references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Allocation"      add constraint "Allocation_allocatedById_fkey"     foreign key ("allocatedById")  references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "TransferRequest" add constraint "TransferRequest_assetId_fkey"      foreign key ("assetId")        references "Asset"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "TransferRequest" add constraint "TransferRequest_fromUserId_fkey"   foreign key ("fromUserId")     references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "TransferRequest" add constraint "TransferRequest_toUserId_fkey"     foreign key ("toUserId")       references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "TransferRequest" add constraint "TransferRequest_requestedById_fkey" foreign key ("requestedById") references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "TransferRequest" add constraint "TransferRequest_approvedById_fkey" foreign key ("approvedById")   references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Booking"         add constraint "Booking_resourceId_fkey"           foreign key ("resourceId")     references "Asset"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Booking"         add constraint "Booking_bookedById_fkey"           foreign key ("bookedById")     references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "MaintenanceRequest" add constraint "MaintenanceRequest_assetId_fkey"     foreign key ("assetId")     references "Asset"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "MaintenanceRequest" add constraint "MaintenanceRequest_raisedById_fkey"  foreign key ("raisedById")  references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "MaintenanceRequest" add constraint "MaintenanceRequest_approvedById_fkey" foreign key ("approvedById") references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditCycle"      add constraint "AuditCycle_createdById_fkey"        foreign key ("createdById")    references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditAssignment" add constraint "AuditAssignment_cycleId_fkey"       foreign key ("cycleId")        references "AuditCycle"(id) on delete cascade;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditAssignment" add constraint "AuditAssignment_auditorId_fkey"     foreign key ("auditorId")      references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditItem"       add constraint "AuditItem_cycleId_fkey"             foreign key ("cycleId")        references "AuditCycle"(id) on delete cascade;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditItem"       add constraint "AuditItem_assetId_fkey"             foreign key ("assetId")        references "Asset"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "AuditItem"       add constraint "AuditItem_auditedById_fkey"         foreign key ("auditedById")    references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "Notification"    add constraint "Notification_userId_fkey"           foreign key ("userId")         references "User"(id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table "ActivityLog"     add constraint "ActivityLog_userId_fkey"            foreign key ("userId")         references "User"(id);
+exception when duplicate_object then null; end $$;
 
--- --- updatedAt triggers -----------------------------------------------------
+-- --- updatedAt triggers (idempotent) ----------------------------------------
+drop trigger if exists set_updated_at_user            on "User";
+drop trigger if exists set_updated_at_department      on "Department";
+drop trigger if exists set_updated_at_assetcategory   on "AssetCategory";
+drop trigger if exists set_updated_at_asset           on "Asset";
+drop trigger if exists set_updated_at_transferrequest on "TransferRequest";
+drop trigger if exists set_updated_at_booking         on "Booking";
+drop trigger if exists set_updated_at_maintenance     on "MaintenanceRequest";
 create trigger set_updated_at_user            before update on "User"            for each row execute function set_updated_at();
 create trigger set_updated_at_department      before update on "Department"      for each row execute function set_updated_at();
 create trigger set_updated_at_assetcategory   before update on "AssetCategory"   for each row execute function set_updated_at();

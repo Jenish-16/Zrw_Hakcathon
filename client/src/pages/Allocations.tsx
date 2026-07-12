@@ -63,13 +63,13 @@ export default function Allocations() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              filter === f.key ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-surface-border hover:bg-slate-50'
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              filter === f.key ? 'bg-ink-900 text-white' : 'bg-surface text-ink-600 ring-1 ring-surface-border hover:bg-surface-muted'
             }`}
           >
             {f.label}
@@ -97,10 +97,10 @@ export default function Allocations() {
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {allocations.map((a) => (
-                  <tr key={a.id} className={`transition hover:bg-slate-50 ${a.isOverdue ? 'bg-rose-50/40' : ''}`}>
+                  <tr key={a.id} className={`transition-colors hover:bg-surface-muted ${a.isOverdue ? 'bg-danger-50/50' : ''}`}>
                     <td className="table-cell">
-                      <p className="font-semibold text-slate-800">{a.asset?.name}</p>
-                      <p className="font-mono text-xs text-slate-400">{a.asset?.assetTag}</p>
+                      <p className="text-[13px] font-medium text-ink-800">{a.asset?.name}</p>
+                      <p className="font-mono text-xs text-ink-400">{a.asset?.assetTag}</p>
                     </td>
                     <td className="table-cell">
                       {a.holder ? (
@@ -108,24 +108,24 @@ export default function Allocations() {
                           <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${avatarColor(a.holder.name)}`}>
                             {initials(a.holder.name)}
                           </div>
-                          <span className="text-slate-600">{a.holder.name}</span>
+                          <span className="text-ink-600">{a.holder.name}</span>
                         </div>
                       ) : '—'}
                     </td>
-                    <td className="table-cell text-slate-600">{fmtDate(a.allocatedAt)}</td>
+                    <td className="table-cell font-mono text-[13px] tabular-nums text-ink-600">{fmtDate(a.allocatedAt)}</td>
                     <td className="table-cell">
                       {a.expectedReturnDate ? (
-                        <span className={`inline-flex items-center gap-1.5 ${a.isOverdue ? 'font-semibold text-rose-600' : 'text-slate-600'}`}>
+                        <span className={`inline-flex items-center gap-1.5 ${a.isOverdue ? 'font-medium text-danger-600' : 'text-ink-600'}`}>
                           {a.isOverdue && <AlertTriangle className="h-3.5 w-3.5" />}
-                          {fmtDate(a.expectedReturnDate)}
-                          {a.isOverdue && <Badge className="bg-rose-50 text-rose-700 ring-rose-600/20">Overdue</Badge>}
+                          <span className="font-mono text-[13px] tabular-nums">{fmtDate(a.expectedReturnDate)}</span>
+                          {a.isOverdue && <Badge className="bg-danger-600/10 text-danger-700 ring-danger-600/20">Overdue</Badge>}
                         </span>
                       ) : (
-                        <span className="text-slate-300">No date</span>
+                        <span className="text-ink-300">No date</span>
                       )}
                     </td>
                     <td className="table-cell">
-                      <Badge className={a.status === 'ACTIVE' ? 'bg-brand-50 text-brand-700 ring-brand-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/20'}>
+                      <Badge className={a.status === 'ACTIVE' ? 'bg-accent-500/10 text-accent-800 ring-accent-600/20' : 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>
                         {titleCase(a.status)}
                       </Badge>
                     </td>
@@ -260,8 +260,8 @@ function ReturnModal({ allocation, onClose, onSaved }: { allocation: Allocation;
         <Field label="Check-in notes (optional)">
           <Textarea rows={3} value={checkInNotes} onChange={(e) => setCheckInNotes(e.target.value)} placeholder="Condition details, accessories returned..." />
         </Field>
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          The asset status will revert to <span className="font-semibold">Available</span> after return.
+        <p className="rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-500">
+          The asset status will revert to <span className="font-medium text-ink-700">Available</span> after return.
         </p>
       </div>
     </Modal>

@@ -10,8 +10,8 @@ export function ProtectedRoute({ children, roles }: { children: ReactNode; roles
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-surface-muted">
-        <Spinner label="Loading AssetFlow..." />
+      <div className="flex h-screen items-center justify-center bg-paper">
+        <Spinner label="Loading AssetFlow…" />
       </div>
     );
   }
@@ -21,8 +21,8 @@ export function ProtectedRoute({ children, roles }: { children: ReactNode; roles
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-          <h2 className="text-xl font-bold text-slate-800">Access restricted</h2>
-          <p className="max-w-md text-sm text-slate-500">
+          <h2 className="text-xl font-semibold tracking-tight text-ink-900">Access restricted</h2>
+          <p className="max-w-md text-[13px] text-ink-500">
             You don't have permission to view this page. Contact an administrator if you believe this is a mistake.
           </p>
         </div>

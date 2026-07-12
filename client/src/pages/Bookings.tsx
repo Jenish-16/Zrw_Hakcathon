@@ -90,8 +90,8 @@ export default function Bookings() {
               {resources?.map((r) => <option key={r.id} value={r.id}>{r.name} · {r.assetTag}</option>)}
             </Select>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-600">
+            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} className="h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" />
             My bookings only
           </label>
         </div>
@@ -105,21 +105,23 @@ export default function Bookings() {
         <div className="space-y-5">
           {grouped.map(([day, items]) => (
             <div key={day}>
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600"><CalendarDays className="h-4 w-4" /></div>
-                <h3 className="text-sm font-semibold text-slate-700">{fmtDate(day)}</h3>
-                <span className="text-xs text-slate-400">{items.length} booking{items.length > 1 ? 's' : ''}</span>
+              <div className="mb-2 flex items-baseline gap-2">
+                <CalendarDays className="h-4 w-4 self-center text-ink-400" />
+                <h3 className="font-mono text-[13px] font-medium tabular-nums text-ink-800">{fmtDate(day)}</h3>
+                <span className="text-xs text-ink-400">{items.length} booking{items.length > 1 ? 's' : ''}</span>
               </div>
               <div className="space-y-2">
                 {items.sort((a, b) => a.startTime.localeCompare(b.startTime)).map((b) => (
                   <Card key={b.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-                    <div className="flex w-36 flex-shrink-0 items-center gap-2 text-sm font-semibold text-slate-800">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                      {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                    <div className="flex w-40 flex-shrink-0 items-center gap-2">
+                      <Clock className="h-4 w-4 text-ink-400" />
+                      <span className="font-mono text-[13px] font-medium tabular-nums text-ink-800">
+                        {fmtTime(b.startTime)} – {fmtTime(b.endTime)}
+                      </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-800">{b.resource?.name}</p>
-                      <p className="flex items-center gap-1 text-xs text-slate-400">
+                      <p className="text-sm font-medium text-ink-800">{b.resource?.name}</p>
+                      <p className="flex items-center gap-1 text-xs text-ink-400">
                         <MapPin className="h-3 w-3" /> {b.resource?.location ?? b.resource?.assetTag}
                         {b.purpose ? ` · ${b.purpose}` : ''}
                       </p>
@@ -128,12 +130,12 @@ export default function Bookings() {
                       <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${avatarColor(b.bookedBy?.name ?? '?')}`}>
                         {initials(b.bookedBy?.name ?? '?')}
                       </div>
-                      <span className="hidden text-sm text-slate-500 sm:inline">{b.bookedBy?.name}</span>
+                      <span className="hidden text-[13px] text-ink-500 sm:inline">{b.bookedBy?.name}</span>
                       <Badge className={bookingStatusStyle[b.status]}>{titleCase(b.status)}</Badge>
                       {(b.status === 'UPCOMING' || b.status === 'ONGOING') && canModify(b) && (
                         <>
-                          <button onClick={() => { setEditing(b); setShowForm(true); }} title="Reschedule" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Pencil className="h-4 w-4" /></button>
-                          <button onClick={() => cancel(b)} title="Cancel" className="rounded-lg p-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600"><X className="h-4 w-4" /></button>
+                          <button onClick={() => { setEditing(b); setShowForm(true); }} title="Reschedule" className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-900/5 hover:text-ink-600"><Pencil className="h-4 w-4" /></button>
+                          <button onClick={() => cancel(b)} title="Cancel" className="rounded-md p-1.5 text-danger-600 transition-colors hover:bg-danger-50"><X className="h-4 w-4" /></button>
                         </>
                       )}
                     </div>

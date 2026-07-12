@@ -60,37 +60,38 @@ function AuditCard({ cycle, onClick }: { cycle: AuditCycle; onClick: () => void 
   const auditors = cycle.assignments ?? [];
 
   return (
-    <Card className="cursor-pointer p-5 transition hover:shadow-cardhover" onClick={onClick}>
+    <Card className="cursor-pointer p-5 transition-colors hover:border-ink-300" onClick={onClick}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold text-slate-900">{cycle.name}</h3>
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+          <h3 className="truncate text-sm font-semibold tracking-tight text-ink-900">{cycle.name}</h3>
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-400">
             {cycle.scopeType === 'DEPARTMENT' ? <Building2 className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}
             {cycle.scopeType === 'DEPARTMENT' ? 'Department scope' : cycle.scopeValue}
           </p>
         </div>
-        <Badge className={cycle.status === 'OPEN' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/20'}>
+        <Badge className={cycle.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20' : 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>
           {cycle.status}
         </Badge>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
-        <CalendarRange className="h-3.5 w-3.5" /> {fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-500">
+        <CalendarRange className="h-3.5 w-3.5 text-ink-400" />
+        <span className="font-mono tabular-nums">{fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}</span>
       </p>
 
       <div className="mt-4">
-        <div className="mb-1 flex items-center justify-between text-xs">
-          <span className="font-medium text-slate-600">Verification progress</span>
-          <span className="text-slate-400">{done}/{total}</span>
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="micro-label">Verification progress</span>
+          <span className="font-mono text-xs tabular-nums text-ink-500">{done}/{total}</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-1 overflow-hidden rounded-full bg-ink-100">
+          <div className="h-full rounded-full bg-accent-500 transition-all" style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium">
-          <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700">{counts.VERIFIED} verified</span>
-          <span className="rounded-md bg-rose-50 px-2 py-0.5 text-rose-700">{counts.MISSING} missing</span>
-          <span className="rounded-md bg-amber-50 px-2 py-0.5 text-amber-700">{counts.DAMAGED} damaged</span>
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-600">{counts.PENDING} pending</span>
+          <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-emerald-800"><span className="font-mono tabular-nums">{counts.VERIFIED}</span> verified</span>
+          <span className="rounded-md bg-danger-600/10 px-2 py-0.5 text-danger-700"><span className="font-mono tabular-nums">{counts.MISSING}</span> missing</span>
+          <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-amber-800"><span className="font-mono tabular-nums">{counts.DAMAGED}</span> damaged</span>
+          <span className="rounded-md bg-ink-500/10 px-2 py-0.5 text-ink-600"><span className="font-mono tabular-nums">{counts.PENDING}</span> pending</span>
         </div>
       </div>
 
@@ -98,12 +99,12 @@ function AuditCard({ cycle, onClick }: { cycle: AuditCycle; onClick: () => void 
         <div className="mt-4 flex items-center gap-2">
           <div className="flex -space-x-2">
             {auditors.slice(0, 4).map((a) => (
-              <div key={a.id} title={a.auditor.name} className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-white ${avatarColor(a.auditor.name)}`}>
+              <div key={a.id} title={a.auditor.name} className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-surface ${avatarColor(a.auditor.name)}`}>
                 {initials(a.auditor.name)}
               </div>
             ))}
           </div>
-          <span className="text-xs text-slate-400">{auditors.length} auditor{auditors.length > 1 ? 's' : ''}</span>
+          <span className="text-xs text-ink-400">{auditors.length} auditor{auditors.length > 1 ? 's' : ''}</span>
         </div>
       )}
     </Card>
@@ -191,14 +192,14 @@ function CreateCycleModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
         </div>
 
         <Field label={`Auditors (${auditorIds.length} selected)`} required>
-          <div className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-surface-border p-2">
+          <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-surface-border p-2">
             {users?.map((u) => (
-              <label key={u.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50">
-                <input type="checkbox" checked={auditorIds.includes(u.id)} onChange={() => toggleAuditor(u.id)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+              <label key={u.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-muted">
+                <input type="checkbox" checked={auditorIds.includes(u.id)} onChange={() => toggleAuditor(u.id)} className="h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" />
                 <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${avatarColor(u.name)}`}>{initials(u.name)}</div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-700">{u.name}</p>
-                  <p className="truncate text-xs text-slate-400">{u.email}</p>
+                  <p className="truncate text-[13px] font-medium text-ink-700">{u.name}</p>
+                  <p className="truncate text-xs text-ink-400">{u.email}</p>
                 </div>
               </label>
             ))}

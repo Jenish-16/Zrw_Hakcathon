@@ -3,10 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft,
-  QrCode,
-  MapPin,
-  Building2,
-  Calendar,
   Wrench,
   History,
   CalendarDays,
@@ -41,50 +37,43 @@ export default function AssetDetail() {
 
   return (
     <div className="animate-fade-in">
-      <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700">
+      <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1.5 text-[13px] font-medium text-ink-500 transition-colors hover:text-ink-700">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: identity card */}
-        <Card className="p-6 lg:col-span-1">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-              <QrCode className="h-8 w-8" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold text-slate-900">{asset.name}</h1>
-              <p className="font-mono text-sm text-slate-400">{asset.assetTag}</p>
-            </div>
-          </div>
+        <Card className="p-5 lg:col-span-1">
+          <p className="font-mono text-xs uppercase tracking-wide text-ink-400">{asset.assetTag}</p>
+          <h1 className="mt-1 text-lg font-semibold tracking-tight text-ink-900">{asset.name}</h1>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <Badge className={assetStatusStyle[asset.status]}>{titleCase(asset.status)}</Badge>
             <Badge className={conditionStyle[asset.condition]}>{titleCase(asset.condition)}</Badge>
-            {asset.isBookable && <Badge className="bg-violet-50 text-violet-700 ring-violet-600/20">Bookable</Badge>}
+            {asset.isBookable && <Badge className="bg-violet-500/10 text-violet-800 ring-violet-600/20">Bookable</Badge>}
           </div>
 
           {asset.currentHolder && (
-            <div className="mt-4 flex items-center gap-3 rounded-xl bg-brand-50/60 p-3">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(asset.currentHolder.name)}`}>
+            <div className="mt-4 flex items-center gap-3 rounded-lg border border-surface-border bg-surface-muted p-3">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${avatarColor(asset.currentHolder.name)}`}>
                 {initials(asset.currentHolder.name)}
               </div>
               <div>
-                <p className="text-xs text-slate-500">Currently held by</p>
-                <p className="text-sm font-semibold text-slate-800">{asset.currentHolder.name}</p>
+                <p className="micro-label">Held by</p>
+                <p className="text-sm font-medium text-ink-800">{asset.currentHolder.name}</p>
               </div>
             </div>
           )}
 
-          <dl className="mt-5 space-y-3 text-sm">
-            <Detail icon={<Info className="h-4 w-4" />} label="Category" value={asset.category?.name} />
-            <Detail icon={<Building2 className="h-4 w-4" />} label="Department" value={asset.department?.name ?? 'Unassigned'} />
-            <Detail icon={<MapPin className="h-4 w-4" />} label="Location" value={asset.location ?? '—'} />
-            <Detail icon={<QrCode className="h-4 w-4" />} label="Serial No." value={asset.serialNumber ?? '—'} />
-            <Detail icon={<Calendar className="h-4 w-4" />} label="Acquired" value={fmtDate(asset.acquisitionDate)} />
-            <Detail icon={<Info className="h-4 w-4" />} label="Cost" value={fmtCurrency(asset.acquisitionCost)} />
+          <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-surface-border pt-4">
+            <Detail label="Category" value={asset.category?.name} />
+            <Detail label="Department" value={asset.department?.name ?? 'Unassigned'} />
+            <Detail label="Location" value={asset.location ?? '—'} />
+            <Detail label="Serial No." value={asset.serialNumber ?? '—'} mono />
+            <Detail label="Acquired" value={fmtDate(asset.acquisitionDate)} mono />
+            <Detail label="Cost" value={fmtCurrency(asset.acquisitionCost)} mono />
             {Object.entries(custom).map(([k, v]) => (
-              <Detail key={k} icon={<Info className="h-4 w-4" />} label={titleCase(k)} value={String(v)} />
+              <Detail key={k} label={titleCase(k)} value={String(v)} />
             ))}
           </dl>
 
@@ -112,20 +101,20 @@ export default function AssetDetail() {
           <Card className="mt-4 p-5">
             {tab === 'overview' && (
               <div className="space-y-4">
-                <h3 className="font-semibold text-slate-900">Lifecycle timeline</h3>
+                <p className="micro-label">Lifecycle timeline</p>
                 {allocations.length === 0 && maintenance.length === 0 ? (
                   <EmptyState title="No history yet" subtitle="Allocation and maintenance events will appear here." />
                 ) : (
-                  <ol className="relative space-y-4 border-l border-slate-200 pl-5">
+                  <ol className="relative space-y-4 border-l border-surface-border pl-5">
                     {[...allocations.map((a) => ({ t: a.allocatedAt, text: `Allocated to ${a.holder?.name}`, kind: 'alloc' as const })),
                       ...maintenance.map((m) => ({ t: m.createdAt, text: `Maintenance: ${titleCase(m.status)}`, kind: 'maint' as const }))]
                       .sort((a, b) => new Date(b.t).getTime() - new Date(a.t).getTime())
                       .slice(0, 12)
                       .map((e, i) => (
                         <li key={i}>
-                          <span className={`absolute -left-[7px] mt-1.5 h-3 w-3 rounded-full ${e.kind === 'alloc' ? 'bg-brand-500' : 'bg-amber-500'}`} />
-                          <p className="text-sm text-slate-700">{e.text}</p>
-                          <p className="text-xs text-slate-400">{fmtDateTime(e.t)}</p>
+                          <span className={`absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full ${e.kind === 'alloc' ? 'bg-accent-500' : 'bg-amber-500'}`} />
+                          <p className="text-sm text-ink-700">{e.text}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-ink-400">{fmtDateTime(e.t)}</p>
                         </li>
                       ))}
                   </ol>
@@ -139,13 +128,13 @@ export default function AssetDetail() {
                   {allocations.map((a) => (
                     <li key={a.id} className="flex items-center justify-between py-3">
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{a.holder?.name}</p>
-                        <p className="text-xs text-slate-400">
-                          {fmtDate(a.allocatedAt)} → {a.returnedAt ? fmtDate(a.returnedAt) : 'Present'}
+                        <p className="text-sm font-medium text-ink-800">{a.holder?.name}</p>
+                        <p className="mt-0.5 text-xs text-ink-400">
+                          <span className="font-mono">{fmtDate(a.allocatedAt)} → {a.returnedAt ? fmtDate(a.returnedAt) : 'Present'}</span>
                           {a.checkInNotes ? ` · ${a.checkInNotes}` : ''}
                         </p>
                       </div>
-                      <Badge className={a.status === 'ACTIVE' ? 'bg-brand-50 text-brand-700 ring-brand-600/20' : 'bg-slate-100 text-slate-600 ring-slate-500/20'}>
+                      <Badge className={a.status === 'ACTIVE' ? 'bg-accent-500/10 text-accent-800 ring-accent-600/20' : 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>
                         {titleCase(a.status)}
                       </Badge>
                     </li>
@@ -160,11 +149,11 @@ export default function AssetDetail() {
                   {maintenance.map((m) => (
                     <li key={m.id} className="py-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-slate-800">{m.description}</p>
+                        <p className="text-sm font-medium text-ink-800">{m.description}</p>
                         <Badge className={maintenanceStatusStyle[m.status]}>{titleCase(m.status)}</Badge>
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Raised by {m.raisedBy?.name} · {fmtDate(m.createdAt)}
+                      <p className="mt-1 text-xs text-ink-400">
+                        Raised by {m.raisedBy?.name} · <span className="font-mono">{fmtDate(m.createdAt)}</span>
                         {m.technicianName ? ` · Technician: ${m.technicianName}` : ''}
                       </p>
                     </li>
@@ -179,10 +168,10 @@ export default function AssetDetail() {
                   {bookings.map((b) => (
                     <li key={b.id} className="flex items-center justify-between py-3">
                       <div>
-                        <p className="text-sm font-medium text-slate-800">{b.bookedBy?.name}</p>
-                        <p className="text-xs text-slate-400">{fmtDateTime(b.startTime)} – {fmtDateTime(b.endTime)}</p>
+                        <p className="text-sm font-medium text-ink-800">{b.bookedBy?.name}</p>
+                        <p className="mt-0.5 font-mono text-[11px] text-ink-400">{fmtDateTime(b.startTime)} – {fmtDateTime(b.endTime)}</p>
                       </div>
-                      <Link to="/bookings" className="text-slate-300 hover:text-slate-500"><ChevronRight className="h-4 w-4" /></Link>
+                      <Link to="/bookings" className="text-ink-300 transition-colors hover:text-ink-500"><ChevronRight className="h-4 w-4" /></Link>
                     </li>
                   ))}
                 </ul>
@@ -197,12 +186,11 @@ export default function AssetDetail() {
   );
 }
 
-function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; value?: string }) {
+function Detail({ label, value, mono }: { label: string; value?: string; mono?: boolean }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="text-slate-400">{icon}</span>
-      <span className="w-24 flex-shrink-0 text-slate-400">{label}</span>
-      <span className="font-medium text-slate-700">{value}</span>
+    <div>
+      <dt className="micro-label">{label}</dt>
+      <dd className={`mt-1 text-sm text-ink-800 ${mono ? 'font-mono text-[13px] tabular-nums' : ''}`}>{value}</dd>
     </div>
   );
 }
@@ -242,7 +230,7 @@ function StatusModal({ asset, onClose, onSaved }: { asset: Asset; onClose: () =>
         <Field label="Note (optional)">
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for change" />
         </Field>
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
           Allocated assets must be returned before their status can be changed.
         </p>
       </div>

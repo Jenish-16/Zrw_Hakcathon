@@ -26,16 +26,6 @@ const ENTITY_ICON: Record<string, JSX.Element> = {
   AuditCycle: <ClipboardCheck className="h-4 w-4" />,
 };
 
-const ENTITY_COLOR: Record<string, string> = {
-  Asset: 'bg-brand-100 text-brand-600',
-  User: 'bg-fuchsia-100 text-fuchsia-600',
-  Department: 'bg-violet-100 text-violet-600',
-  AssetCategory: 'bg-cyan-100 text-cyan-600',
-  Booking: 'bg-emerald-100 text-emerald-600',
-  MaintenanceRequest: 'bg-amber-100 text-amber-600',
-  AuditCycle: 'bg-rose-100 text-rose-600',
-};
-
 export default function Activity() {
   const [search, setSearch] = useState('');
   const [entityType, setEntityType] = useState('');
@@ -84,19 +74,19 @@ export default function Activity() {
         <div className="space-y-6">
           {grouped.map(([day, entries]) => (
             <div key={day}>
-              <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{day}</h3>
+              <h3 className="micro-label mb-2 px-1">{day}</h3>
               <Card className="divide-y divide-surface-border">
                 {entries.map((e) => (
                   <div key={e.id} className="flex items-start gap-3 px-4 py-3">
-                    <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${ENTITY_COLOR[e.entityType] ?? 'bg-slate-100 text-slate-500'}`}>
+                    <span className="mt-0.5 flex-shrink-0 text-ink-400">
                       {ENTITY_ICON[e.entityType] ?? <ActivityIcon className="h-4 w-4" />}
-                    </div>
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{e.actorName}</span> {e.action.toLowerCase()}
-                        {e.details ? <span className="text-slate-500"> — {e.details}</span> : ''}
+                      <p className="text-sm text-ink-700">
+                        <span className="font-medium text-ink-800">{e.actorName}</span> {e.action.toLowerCase()}
+                        {e.details ? <span className="text-ink-500"> — {e.details}</span> : ''}
                       </p>
-                      <p className="text-xs text-slate-400">{fromNow(e.createdAt)}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-ink-400">{fromNow(e.createdAt)}</p>
                     </div>
                   </div>
                 ))}

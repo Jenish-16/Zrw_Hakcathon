@@ -1,58 +1,59 @@
 // Central mapping of domain statuses to badge color classes.
+// Badges are quiet chips: faint wash, hairline ring, dark text + status dot.
 
 export const assetStatusStyle: Record<string, string> = {
-  AVAILABLE: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  ALLOCATED: 'bg-brand-50 text-brand-700 ring-brand-600/20',
-  RESERVED: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-  UNDER_MAINTENANCE: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  LOST: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  RETIRED: 'bg-slate-100 text-slate-600 ring-slate-500/20',
-  DISPOSED: 'bg-slate-100 text-slate-500 ring-slate-500/20',
+  AVAILABLE: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
+  ALLOCATED: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  RESERVED: 'bg-violet-500/10 text-violet-800 ring-violet-600/20',
+  UNDER_MAINTENANCE: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
+  LOST: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
+  RETIRED: 'bg-ink-500/10 text-ink-600 ring-ink-400/25',
+  DISPOSED: 'bg-ink-500/10 text-ink-500 ring-ink-400/25',
 };
 
 export const conditionStyle: Record<string, string> = {
-  NEW: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  GOOD: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  FAIR: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  POOR: 'bg-orange-50 text-orange-700 ring-orange-600/20',
-  DAMAGED: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  NEW: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
+  GOOD: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  FAIR: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
+  POOR: 'bg-orange-500/10 text-orange-800 ring-orange-600/25',
+  DAMAGED: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
 };
 
 export const bookingStatusStyle: Record<string, string> = {
-  UPCOMING: 'bg-brand-50 text-brand-700 ring-brand-600/20',
-  ONGOING: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  COMPLETED: 'bg-slate-100 text-slate-600 ring-slate-500/20',
-  CANCELLED: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  UPCOMING: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  ONGOING: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
+  COMPLETED: 'bg-ink-500/10 text-ink-600 ring-ink-400/25',
+  CANCELLED: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
 };
 
 export const maintenanceStatusStyle: Record<string, string> = {
-  PENDING: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  APPROVED: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  REJECTED: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  TECHNICIAN_ASSIGNED: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-  IN_PROGRESS: 'bg-brand-50 text-brand-700 ring-brand-600/20',
-  RESOLVED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  PENDING: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
+  APPROVED: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  REJECTED: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
+  TECHNICIAN_ASSIGNED: 'bg-violet-500/10 text-violet-800 ring-violet-600/20',
+  IN_PROGRESS: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  RESOLVED: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
 };
 
 export const priorityStyle: Record<string, string> = {
-  LOW: 'bg-slate-100 text-slate-600 ring-slate-500/20',
-  MEDIUM: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  HIGH: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  CRITICAL: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  LOW: 'bg-ink-500/10 text-ink-600 ring-ink-400/25',
+  MEDIUM: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  HIGH: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
+  CRITICAL: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
 };
 
 export const transferStatusStyle: Record<string, string> = {
-  REQUESTED: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  APPROVED: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  COMPLETED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  REJECTED: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  REQUESTED: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
+  APPROVED: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  COMPLETED: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
+  REJECTED: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
 };
 
 export const auditItemStyle: Record<string, string> = {
-  PENDING: 'bg-slate-100 text-slate-600 ring-slate-500/20',
-  VERIFIED: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  MISSING: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  DAMAGED: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  PENDING: 'bg-ink-500/10 text-ink-600 ring-ink-400/25',
+  VERIFIED: 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20',
+  MISSING: 'bg-danger-600/10 text-danger-700 ring-danger-600/20',
+  DAMAGED: 'bg-amber-500/10 text-amber-800 ring-amber-600/25',
 };
 
 export const roleLabel: Record<string, string> = {
@@ -63,8 +64,8 @@ export const roleLabel: Record<string, string> = {
 };
 
 export const roleStyle: Record<string, string> = {
-  ADMIN: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-600/20',
-  ASSET_MANAGER: 'bg-brand-50 text-brand-700 ring-brand-600/20',
-  DEPARTMENT_HEAD: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-  EMPLOYEE: 'bg-slate-100 text-slate-600 ring-slate-500/20',
+  ADMIN: 'bg-ink-900/90 text-white ring-ink-900',
+  ASSET_MANAGER: 'bg-accent-500/10 text-accent-800 ring-accent-600/20',
+  DEPARTMENT_HEAD: 'bg-violet-500/10 text-violet-800 ring-violet-600/20',
+  EMPLOYEE: 'bg-ink-500/10 text-ink-600 ring-ink-400/25',
 };

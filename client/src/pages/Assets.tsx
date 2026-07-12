@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus, Package, QrCode, Pencil, SlidersHorizontal } from 'lucide-react';
+import { Plus, Package, Pencil, SlidersHorizontal } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
 import { Asset, Category, Department } from '../lib/types';
@@ -84,11 +84,11 @@ export default function Assets() {
           </Select>
         </div>
         <div className="mt-3 flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={bookable} onChange={(e) => setBookable(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-            <SlidersHorizontal className="h-4 w-4" /> Bookable resources only
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-600">
+            <input type="checkbox" checked={bookable} onChange={(e) => setBookable(e.target.checked)} className="h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" />
+            <SlidersHorizontal className="h-4 w-4 text-ink-400" /> Bookable resources only
           </label>
-          <span className="text-sm text-slate-400">{assets?.length ?? 0} results</span>
+          <span className="font-mono text-xs tabular-nums text-ink-400">{assets?.length ?? 0} results</span>
         </div>
       </Card>
 
@@ -114,38 +114,31 @@ export default function Assets() {
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {assets.map((a) => (
-                  <tr key={a.id} className="cursor-pointer transition hover:bg-slate-50" onClick={() => navigate(`/assets/${a.id}`)}>
+                  <tr key={a.id} className="cursor-pointer transition-colors hover:bg-surface-muted" onClick={() => navigate(`/assets/${a.id}`)}>
                     <td className="table-cell">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                          <QrCode className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800">{a.name}</p>
-                          <p className="font-mono text-xs text-slate-400">{a.assetTag}{a.isBookable ? ' · Bookable' : ''}</p>
-                        </div>
-                      </div>
+                      <p className="text-[13px] font-medium text-ink-800">{a.name}</p>
+                      <p className="font-mono text-xs text-ink-400">{a.assetTag}{a.isBookable ? ' · Bookable' : ''}</p>
                     </td>
-                    <td className="table-cell text-slate-600">{a.category?.name}</td>
+                    <td className="table-cell text-ink-600">{a.category?.name}</td>
                     <td className="table-cell"><Badge className={assetStatusStyle[a.status]}>{titleCase(a.status)}</Badge></td>
                     <td className="table-cell"><Badge className={conditionStyle[a.condition]}>{titleCase(a.condition)}</Badge></td>
-                    <td className="table-cell text-slate-600">{a.location ?? '—'}</td>
+                    <td className="table-cell text-ink-600">{a.location ?? '—'}</td>
                     <td className="table-cell">
                       {a.currentHolder ? (
                         <div className="flex items-center gap-2">
                           <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ${avatarColor(a.currentHolder.name)}`}>
                             {initials(a.currentHolder.name)}
                           </div>
-                          <span className="text-slate-600">{a.currentHolder.name}</span>
+                          <span className="text-ink-600">{a.currentHolder.name}</span>
                         </div>
                       ) : (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-ink-300">—</span>
                       )}
                     </td>
-                    <td className="table-cell text-right text-slate-600">{fmtCurrency(a.acquisitionCost)}</td>
+                    <td className="table-cell text-right font-mono text-[13px] tabular-nums text-ink-600">{fmtCurrency(a.acquisitionCost)}</td>
                     {canManage && (
                       <td className="table-cell" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => { setEditing(a); setShowForm(true); }} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                        <button onClick={() => { setEditing(a); setShowForm(true); }} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-ink-900/5 hover:text-ink-600">
                           <Pencil className="h-4 w-4" />
                         </button>
                       </td>
@@ -301,11 +294,11 @@ function AssetFormModal({
         ))}
 
         <div className="sm:col-span-2">
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-surface-border p-3">
-            <input type="checkbox" checked={form.isBookable} onChange={(e) => set('isBookable', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-surface-border p-3">
+            <input type="checkbox" checked={form.isBookable} onChange={(e) => set('isBookable', e.target.checked)} className="h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" />
             <div>
-              <p className="text-sm font-medium text-slate-700">Shared / bookable resource</p>
-              <p className="text-xs text-slate-400">Allow this asset to be booked by time slot (rooms, vehicles, equipment).</p>
+              <p className="text-sm font-medium text-ink-700">Shared / bookable resource</p>
+              <p className="text-xs text-ink-400">Allow this asset to be booked by time slot (rooms, vehicles, equipment).</p>
             </div>
           </label>
         </div>

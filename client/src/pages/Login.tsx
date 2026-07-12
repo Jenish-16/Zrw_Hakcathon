@@ -22,7 +22,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      toast.success('Welcome back!');
+      toast.success('Welcome back');
       navigate('/dashboard');
     } catch (err) {
       toast.error(errorMessage(err, 'Login failed'));
@@ -38,13 +38,13 @@ export default function Login() {
 
   return (
     <AuthShell>
-      <h1 className="text-2xl font-bold text-slate-900">Sign in to your account</h1>
-      <p className="mt-1.5 text-sm text-slate-500">Enter your credentials to access the platform.</p>
+      <h1 className="text-lg font-semibold tracking-tight text-ink-900">Sign in</h1>
+      <p className="mt-1 text-[13px] text-ink-500">Enter your credentials to access the platform.</p>
 
-      <form onSubmit={submit} className="mt-8 space-y-4">
+      <form onSubmit={submit} className="mt-6 space-y-4">
         <Field label="Email address">
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
             <input
               type="email"
               required
@@ -59,7 +59,7 @@ export default function Login() {
 
         <Field label="Password">
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
             <input
               type={show ? 'text' : 'password'}
               required
@@ -72,7 +72,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShow((s) => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 transition-colors hover:text-ink-600"
             >
               {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -80,7 +80,7 @@ export default function Login() {
         </Field>
 
         <div className="flex justify-end">
-          <Link to="/forgot-password" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+          <Link to="/forgot-password" className="text-[13px] font-medium text-accent-600 hover:text-accent-700">
             Forgot password?
           </Link>
         </div>
@@ -90,16 +90,16 @@ export default function Login() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-5 text-center text-[13px] text-ink-500">
         Don't have an account?{' '}
-        <Link to="/signup" className="font-semibold text-brand-600 hover:text-brand-700">
+        <Link to="/signup" className="font-medium text-accent-600 hover:text-accent-700">
           Create one
         </Link>
       </p>
 
-      <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white/60 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Demo accounts — click to fill</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-6 border-t border-surface-border pt-5">
+        <p className="micro-label">Demo access — click to fill</p>
+        <div className="mt-2.5 grid grid-cols-2 gap-1.5">
           {[
             ['Admin', 'admin@assetflow.com'],
             ['Asset Manager', 'manager@assetflow.com'],
@@ -110,10 +110,12 @@ export default function Login() {
               key={mail}
               type="button"
               onClick={() => quickFill(mail)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs transition hover:border-brand-300 hover:bg-brand-50"
+              className="rounded-md border border-surface-border bg-surface px-2.5 py-2 text-left transition-colors hover:border-ink-300 hover:bg-surface-muted"
             >
-              <span className="block font-semibold text-slate-700">{label}</span>
-              <span className="block truncate text-slate-400">{mail}</span>
+              <span className="block font-mono text-[11px] font-medium uppercase tracking-wide text-ink-700">
+                {label}
+              </span>
+              <span className="block truncate text-[11px] text-ink-400">{mail}</span>
             </button>
           ))}
         </div>

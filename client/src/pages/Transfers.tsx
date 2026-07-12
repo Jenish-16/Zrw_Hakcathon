@@ -43,13 +43,13 @@ export default function Transfers() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-1.5">
         {STATUS_FILTERS.map((s) => (
           <button
             key={s || 'all'}
             onClick={() => setStatus(s)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              status === s ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-surface-border hover:bg-slate-50'
+            className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              status === s ? 'bg-ink-900 text-white' : 'bg-surface text-ink-600 ring-1 ring-surface-border hover:bg-surface-muted'
             }`}
           >
             {s ? titleCase(s) : 'All'}
@@ -67,24 +67,24 @@ export default function Transfers() {
             <Card key={t.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-800">{t.asset?.name}</p>
-                  <p className="font-mono text-xs text-slate-400">{t.asset?.assetTag}</p>
+                  <p className="text-[13px] font-medium text-ink-800">{t.asset?.name}</p>
+                  <p className="font-mono text-xs text-ink-400">{t.asset?.assetTag}</p>
                 </div>
                 <Badge className={transferStatusStyle[t.status]}>{titleCase(t.status)}</Badge>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-surface-border bg-surface-muted p-2.5">
                 <Party name={t.fromUser?.name ?? 'Unassigned'} />
-                <ArrowRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+                <ArrowRight className="h-4 w-4 flex-shrink-0 text-ink-400" />
                 <Party name={t.toUser?.name ?? '—'} />
               </div>
 
-              <p className="mt-3 text-xs text-slate-400">
-                Requested by <span className="font-medium text-slate-500">{t.requestedBy?.name}</span> · {fromNow(t.createdAt)}
+              <p className="mt-3 text-xs text-ink-400">
+                Requested by <span className="font-medium text-ink-600">{t.requestedBy?.name}</span> · <span className="font-mono text-[11px]">{fromNow(t.createdAt)}</span>
               </p>
-              {t.note && <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">“{t.note}”</p>}
+              {t.note && <p className="mt-2 rounded-lg bg-surface-muted px-3 py-2 text-[13px] text-ink-600">“{t.note}”</p>}
               {t.decisionNote && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-ink-500">
                   Decision note: <span className="italic">{t.decisionNote}</span>
                   {t.approvedBy ? ` — ${t.approvedBy.name}` : ''}
                 </p>
@@ -111,11 +111,11 @@ function Party({ name }: { name: string }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       {name === 'Unassigned' || name === '—' ? (
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400"><CircleUser className="h-4 w-4" /></div>
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-100 text-ink-400"><CircleUser className="h-4 w-4" /></div>
       ) : (
         <div className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${avatarColor(name)}`}>{initials(name)}</div>
       )}
-      <span className="truncate text-sm font-medium text-slate-700">{name}</span>
+      <span className="truncate text-[13px] font-medium text-ink-700">{name}</span>
     </div>
   );
 }

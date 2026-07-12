@@ -50,17 +50,13 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-/** Deterministic pleasant avatar color from a string. */
+/** Deterministic muted avatar color from a string (restrained warm set). */
 export function avatarColor(seed: string): string {
   const colors = [
-    'bg-brand-100 text-brand-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-amber-100 text-amber-700',
-    'bg-rose-100 text-rose-700',
-    'bg-violet-100 text-violet-700',
-    'bg-cyan-100 text-cyan-700',
-    'bg-fuchsia-100 text-fuchsia-700',
-    'bg-lime-100 text-lime-700',
+    'bg-ink-100 text-ink-700',
+    'bg-accent-100 text-accent-800',
+    'bg-[#e7ece3] text-[#41523a]',
+    'bg-[#f0e9db] text-[#6b5a2e]',
   ];
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
