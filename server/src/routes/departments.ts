@@ -45,6 +45,27 @@ async function withCounts<T extends { id: string; parentId?: string | null }>(de
   return { ...shaped, _count: await countsFor(dept.id) };
 }
 
+/**
+ * Walk up the parent chain starting at `startParentId`; returns true if it
+ * reaches `targetId`. Used to reject a parent assignment that would create a
+ * circular hierarchy (e.g. A→B→A). The `seen` set guards against looping on
+ * any pre-existing cycle in the data.
+ */
+async function wouldCycle(startParentId: string, targetId: string): Promise<boolean> {
+  let current: string | null = startParentId;
+  const seen = new Set<string>();
+  while (current) {
+    if (current === targetId) return true;
+    if (seen.has(current)) break;
+    seen.add(current);
+    const row: { parentId: string | null } | null = unwrapMaybe<{ parentId: string | null }>(
+      await supabase.from('Department').select('parentId').eq('id', current).single()
+    );
+    current = row?.parentId ?? null;
+  }
+  return false;
+}
+
 router.get(
   '/',
   asyncHandler(async (_req, res) => {
@@ -100,8 +121,13 @@ router.patch(
   requireRole('ADMIN'),
   asyncHandler(async (req, res) => {
     const data = baseSchema.partial().parse(req.body);
-    if (data.parentId && data.parentId === req.params.id) {
-      throw badRequest('A department cannot be its own parent');
+    if (data.parentId) {
+      if (data.parentId === req.params.id) {
+        throw badRequest('A department cannot be its own parent');
+      }
+      if (await wouldCycle(data.parentId, req.params.id)) {
+        throw badRequest('That parent choice would create a circular department hierarchy');
+      }
     }
     const payload: Record<string, unknown> = {};
     if (data.name !== undefined) payload.name = data.name;

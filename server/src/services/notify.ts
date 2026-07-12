@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { publish } from './sseHub';
 
 interface NotifyInput {
   userId: string;
@@ -13,15 +14,21 @@ interface NotifyInput {
 /** Create a notification for a single user. Never throws. */
 export async function notify(input: NotifyInput): Promise<void> {
   try {
-    const { error } = await supabase.from('Notification').insert({
-      userId: input.userId,
-      type: input.type,
-      title: input.title,
-      message: input.message,
-      link: input.link ?? null,
-      entityId: input.entityId ?? null,
-    });
+    const { data, error } = await supabase
+      .from('Notification')
+      .insert({
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        link: input.link ?? null,
+        entityId: input.entityId ?? null,
+      })
+      .select()
+      .single();
     if (error) throw error;
+    // Push to any open real-time stream this user has (no-op if none).
+    publish(input.userId, 'notification', data);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[notify] failed', err);
@@ -33,17 +40,22 @@ export async function notifyMany(userIds: string[], input: Omit<NotifyInput, 'us
   const unique = [...new Set(userIds)].filter(Boolean);
   if (unique.length === 0) return;
   try {
-    const { error } = await supabase.from('Notification').insert(
-      unique.map((userId) => ({
-        userId,
-        type: input.type,
-        title: input.title,
-        message: input.message,
-        link: input.link ?? null,
-        entityId: input.entityId ?? null,
-      }))
-    );
+    const { data, error } = await supabase
+      .from('Notification')
+      .insert(
+        unique.map((userId) => ({
+          userId,
+          type: input.type,
+          title: input.title,
+          message: input.message,
+          link: input.link ?? null,
+          entityId: input.entityId ?? null,
+        }))
+      )
+      .select();
     if (error) throw error;
+    // Push each row to its recipient's open stream(s), if any.
+    for (const row of data ?? []) publish(row.userId, 'notification', row);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[notifyMany] failed', err);

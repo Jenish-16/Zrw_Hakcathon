@@ -175,7 +175,7 @@ function DepartmentModal({
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async () => {
-    if (!form.name || !form.code) return toast.error('Name and code are required');
+    if (!form.name.trim() || !form.code.trim()) return toast.error('Name and code are required');
     setLoading(true);
     try {
       const payload = { name: form.name, code: form.code, headId: form.headId || null, parentId: form.parentId || null, status: form.status };
@@ -301,10 +301,13 @@ function CategoryModal({ category, onClose, onSaved }: { category: Category | nu
   const removeField = (i: number) => setFields((f) => f.filter((_, idx) => idx !== i));
 
   const submit = async () => {
-    if (!name) return toast.error('Category name is required');
+    if (!name.trim()) return toast.error('Category name is required');
     const cleaned = fields
       .filter((f) => f.label.trim())
       .map((f) => ({ ...f, key: (f.key || f.label).trim().replace(/\s+/g, '_').toLowerCase() }));
+    if (new Set(cleaned.map((f) => f.key)).size !== cleaned.length) {
+      return toast.error('Custom fields must have distinct names');
+    }
     setLoading(true);
     try {
       const payload = { name, description: description || null, customFields: cleaned.length ? cleaned : null };

@@ -118,6 +118,10 @@ create table if not exists "Asset" (
   "customData"      jsonb,
   "categoryId"      text not null,
   "departmentId"    text,
+  -- Real scheduled date for the asset's next preventive maintenance. Set when a
+  -- maintenance request is resolved (resolved date + interval) and manually
+  -- editable by managers. Drives the "due for maintenance" report.
+  "nextMaintenanceDueDate" timestamptz,
   "createdAt"       timestamptz not null default now(),
   "updatedAt"       timestamptz not null default now()
 );
@@ -243,6 +247,7 @@ create table if not exists "ActivityLog" (
 alter table "Allocation"   alter column "holderId" drop not null;
 alter table "Allocation"   add column if not exists "holderDepartmentId" text;
 alter table "Notification" add column if not exists "entityId" text;
+alter table "Asset"        add column if not exists "nextMaintenanceDueDate" timestamptz;
 
 -- --- Foreign keys (named to match supabase-js embedded selects) ------------
 -- Each is guarded so the script is idempotent: re-running it repairs any

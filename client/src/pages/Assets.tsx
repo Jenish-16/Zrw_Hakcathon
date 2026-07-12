@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus, Package, Pencil, SlidersHorizontal, QrCode, FileText, ImagePlus, Loader2, X } from 'lucide-react';
+import { Plus, Package, Pencil, SlidersHorizontal, QrCode, FileText, ImagePlus, Loader2, X, Upload } from 'lucide-react';
 import { AssetQr } from '../components/AssetQr';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
@@ -25,6 +25,7 @@ export default function Assets() {
   const [bookable, setBookable] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [qrAsset, setQrAsset] = useState<Asset | null>(null);
 
   const query = useMemo(() => {
@@ -60,9 +61,14 @@ export default function Assets() {
         subtitle="Register, search and track every asset through its lifecycle."
         actions={
           canManage && (
-            <Button onClick={() => { setEditing(null); setShowForm(true); }}>
-              <Plus className="h-4 w-4" /> Register Asset
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setShowImport(true)}>
+                <Upload className="h-4 w-4" /> Import CSV
+              </Button>
+              <Button onClick={() => { setEditing(null); setShowForm(true); }}>
+                <Plus className="h-4 w-4" /> Register Asset
+              </Button>
+            </>
           )
         }
       />
@@ -169,7 +175,117 @@ export default function Assets() {
       )}
 
       {qrAsset && <QrModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
+
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onDone={() => { setShowImport(false); refetch(); }}
+        />
+      )}
     </div>
+  );
+}
+
+interface ImportResult {
+  created: number;
+  failed: number;
+  total: number;
+  results: { line: number; name: string; assetTag?: string; ok: boolean; error?: string }[];
+}
+
+/** Bulk CSV import — additive to the Assets page; validates each row on the
+ *  server against the single-asset creation schema and reports per-row results. */
+function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  const run = async () => {
+    if (!file) { toast.error('Choose a CSV file first'); return; }
+    setLoading(true);
+    try {
+      const csv = await file.text();
+      const { data } = await api.post<ImportResult>('/assets/import', { csv });
+      setResult(data);
+      if (data.created > 0) toast.success(`${data.created} asset(s) imported`);
+      if (data.failed > 0) toast.error(`${data.failed} row(s) failed — see details`);
+    } catch (err) {
+      toast.error(errorMessage(err, 'Import failed'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={result ? onDone : onClose}
+      title="Import assets from CSV"
+      subtitle="Bulk-create assets. Each row is validated exactly like the single-asset form."
+      size="lg"
+      footer={
+        result ? (
+          <Button onClick={onDone}>Done</Button>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button onClick={run} loading={loading} disabled={!file}>Import</Button>
+          </>
+        )
+      }
+    >
+      {!result ? (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-surface-muted p-3 text-xs text-ink-500">
+            <p className="font-medium text-ink-700">Expected columns</p>
+            <p className="mt-1">
+              <span className="font-mono">Name</span> and <span className="font-mono">Category</span> are required. Optional:{' '}
+              <span className="font-mono">Department, Condition, Location, SerialNumber, AcquisitionCost, AcquisitionDate, isBookable</span>.
+              Category/Department accept a name or an ID. Asset tags are generated automatically — export the Assets CSV first to see the format.
+            </p>
+          </div>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border px-3 py-8 text-sm text-ink-500 transition-colors hover:bg-surface-muted">
+            <Upload className="h-5 w-5" />
+            {file ? <span className="font-medium text-ink-700">{file.name}</span> : 'Choose a .csv file'}
+            <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge dot={false} className="bg-emerald-500/10 text-emerald-800 ring-emerald-600/20">{result.created} created</Badge>
+            {result.failed > 0 && <Badge dot={false} className="bg-danger-500/10 text-danger-700 ring-danger-600/25">{result.failed} failed</Badge>}
+            <Badge dot={false} className="bg-ink-500/10 text-ink-600 ring-ink-400/25">{result.total} rows</Badge>
+          </div>
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-surface-border">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr>
+                  <th className="table-head">Line</th>
+                  <th className="table-head">Name</th>
+                  <th className="table-head">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {result.results.map((r) => (
+                  <tr key={r.line}>
+                    <td className="table-cell font-mono text-ink-400">{r.line}</td>
+                    <td className="table-cell text-ink-700">{r.name || '—'}</td>
+                    <td className="table-cell">
+                      {r.ok ? (
+                        <span className="font-mono text-emerald-700">✓ {r.assetTag}</span>
+                      ) : (
+                        <span className="text-danger-600">{r.error}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 

@@ -64,6 +64,7 @@ export interface Asset {
   documentUrl?: string | null;
   isBookable: boolean;
   status: AssetStatus;
+  nextMaintenanceDueDate?: string | null;
   customData?: Record<string, unknown> | null;
   categoryId: string;
   category?: { id: string; name: string };

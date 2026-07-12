@@ -18,7 +18,16 @@ const customFieldSchema = z.object({
 const baseSchema = z.object({
   name: z.string().trim().min(2, 'Category name is required'),
   description: z.string().nullable().optional(),
-  customFields: z.array(customFieldSchema).nullable().optional(),
+  customFields: z
+    .array(customFieldSchema)
+    .nullable()
+    .optional()
+    // Keys become the storage path for each asset's custom value, so a
+    // collision would silently overwrite data — reject duplicates outright.
+    .refine(
+      (fields) => !fields || new Set(fields.map((f) => f.key)).size === fields.length,
+      { message: 'Custom fields must have distinct names' }
+    ),
 });
 
 async function assetCount(categoryId: string): Promise<number> {

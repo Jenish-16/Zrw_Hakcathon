@@ -192,6 +192,153 @@ router.post(
   })
 );
 
+// --- Bulk CSV import --------------------------------------------------------
+// Symmetric to the /reports/export CSV. Each row is validated against the SAME
+// createSchema used for single-asset creation; category/department may be given
+// by name or id. Returns a per-row success/failure report. Additive endpoint —
+// existing asset routes and flows are untouched.
+
+/** Minimal RFC-4180-style CSV parser: handles quoted fields, escaped quotes
+ *  ("") and CRLF. Returns row objects keyed by normalized (lowercased, alnum)
+ *  headers, skipping blank lines. */
+function parseCsv(text: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let field = '';
+  let row: string[] = [];
+  let inQuotes = false;
+  const pushField = () => { row.push(field); field = ''; };
+  const pushRow = () => { pushField(); rows.push(row); row = []; };
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') pushField();
+    else if (c === '\n') pushRow();
+    else if (c !== '\r') field += c;
+  }
+  if (field.length > 0 || row.length > 0) pushRow();
+  if (rows.length === 0) return [];
+  const headers = rows[0].map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+  return rows
+    .slice(1)
+    .filter((r) => r.some((v) => v.trim() !== ''))
+    .map((r) => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+      return obj;
+    });
+}
+
+const MAX_IMPORT_ROWS = 1000;
+
+router.post(
+  '/import',
+  requireRole('ADMIN', 'ASSET_MANAGER'),
+  asyncHandler(async (req, res) => {
+    const csv = (req.body as { csv?: unknown }).csv;
+    if (typeof csv !== 'string' || !csv.trim()) throw badRequest('Provide CSV content in the "csv" field');
+    const rows = parseCsv(csv);
+    if (rows.length === 0) throw badRequest('No data rows found in the CSV');
+    if (rows.length > MAX_IMPORT_ROWS) throw badRequest(`Too many rows (${rows.length}); the limit is ${MAX_IMPORT_ROWS}`);
+
+    // Resolve category/department by id or (case-insensitive) name.
+    const categories = unwrap(await supabase.from('AssetCategory').select('id, name')) as { id: string; name: string }[];
+    const departments = unwrap(await supabase.from('Department').select('id, name')) as { id: string; name: string }[];
+    const catById = new Set(categories.map((c) => c.id));
+    const catByName = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]));
+    const deptById = new Set(departments.map((d) => d.id));
+    const deptByName = new Map(departments.map((d) => [d.name.toLowerCase(), d.id]));
+    const resolveCat = (v: string) => (catById.has(v) ? v : catByName.get(v.toLowerCase()));
+    const resolveDept = (v: string) => (deptById.has(v) ? v : deptByName.get(v.toLowerCase()));
+    const parseBool = (v: string): boolean | undefined => {
+      const t = v.toLowerCase();
+      if (['true', '1', 'yes', 'y'].includes(t)) return true;
+      if (['false', '0', 'no', 'n'].includes(t)) return false;
+      return undefined;
+    };
+
+    const results: { line: number; name: string; assetTag?: string; ok: boolean; error?: string }[] = [];
+    let created = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const line = i + 2; // +1 for header, +1 for 1-based
+      try {
+        const categoryRaw = r.category ?? '';
+        if (!categoryRaw) throw new Error('Category is required');
+        const categoryId = resolveCat(categoryRaw);
+        if (!categoryId) throw new Error(`Unknown category "${categoryRaw}"`);
+
+        let departmentId: string | undefined;
+        const deptRaw = r.department ?? '';
+        if (deptRaw) {
+          departmentId = resolveDept(deptRaw);
+          if (!departmentId) throw new Error(`Unknown department "${deptRaw}"`);
+        }
+
+        const data = createSchema.parse({
+          name: r.name,
+          categoryId,
+          serialNumber: r.serialnumber || undefined,
+          acquisitionDate: r.acquisitiondate || undefined,
+          acquisitionCost: r.acquisitioncost || undefined,
+          condition: r.condition ? r.condition.toUpperCase() : undefined,
+          location: r.location || undefined,
+          departmentId,
+          isBookable: parseBool(r.isbookable ?? ''),
+        });
+
+        const assetTag = await nextAssetTag();
+        const inserted = unwrap(
+          await supabase
+            .from('Asset')
+            .insert({
+              assetTag,
+              qrCode: makeQrCode(assetTag),
+              name: data.name,
+              categoryId: data.categoryId,
+              serialNumber: data.serialNumber ?? null,
+              acquisitionDate: data.acquisitionDate ?? null,
+              acquisitionCost: data.acquisitionCost ?? null,
+              condition: data.condition ?? 'GOOD',
+              location: data.location ?? null,
+              photoUrl: null,
+              documentUrl: null,
+              isBookable: data.isBookable ?? false,
+              departmentId: data.departmentId || null,
+              customData: null,
+              status: 'AVAILABLE',
+            })
+            .select('assetTag')
+            .single()
+        ) as { assetTag: string };
+        created += 1;
+        results.push({ line, name: data.name, assetTag: inserted.assetTag, ok: true });
+      } catch (err) {
+        let error = 'Invalid row';
+        if (err instanceof z.ZodError) {
+          const f = err.errors[0];
+          error = f ? `${f.path.join('.') || 'input'}: ${f.message}` : 'Validation failed';
+        } else if (err instanceof Error) {
+          error = err.message;
+        }
+        results.push({ line, name: r.name ?? '', ok: false, error });
+      }
+    }
+
+    if (created > 0) {
+      await logActivity(req.user!, {
+        action: 'Imported assets',
+        entityType: 'Asset',
+        details: `${created} of ${results.length} row(s) imported via CSV`,
+      });
+    }
+    res.status(201).json({ created, failed: results.length - created, total: results.length, results });
+  })
+);
+
 const updateSchema = createSchema.partial().omit({ categoryId: true }).extend({
   categoryId: z.string().min(1).optional(),
 });

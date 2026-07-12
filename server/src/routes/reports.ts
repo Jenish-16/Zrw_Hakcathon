@@ -1,7 +1,10 @@
 import { Router } from 'express';
-import { supabase, unwrap } from '../lib/supabase';
+import { z } from 'zod';
+import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { notFound } from '../utils/errors';
+import { logActivity } from '../services/activity';
 
 const router = Router();
 router.use(authenticate);
@@ -41,18 +44,34 @@ router.get(
     const mostUsed = utilization.slice(0, 8);
     const idle = utilization.filter((u) => u.timesAllocated === 0).slice(0, 8);
 
-    // Maintenance frequency by category.
+    // Maintenance frequency — aggregated both by category and per individual asset.
     const maintenance = unwrap(
       await supabase
         .from('MaintenanceRequest')
-        .select('asset:Asset!MaintenanceRequest_assetId_fkey(category:AssetCategory!Asset_categoryId_fkey(name))')
+        .select(
+          'assetId, asset:Asset!MaintenanceRequest_assetId_fkey(assetTag,name,category:AssetCategory!Asset_categoryId_fkey(name))'
+        )
     ) as any[];
     const maintByCategoryMap = new Map<string, number>();
+    const maintByAssetCount = new Map<string, number>();
+    const assetInfo = new Map<string, { assetTag: string; name: string; category: string }>();
     maintenance.forEach((m) => {
-      const key = m.asset.category.name;
-      maintByCategoryMap.set(key, (maintByCategoryMap.get(key) ?? 0) + 1);
+      const category = m.asset?.category?.name ?? 'Uncategorized';
+      maintByCategoryMap.set(category, (maintByCategoryMap.get(category) ?? 0) + 1);
+      maintByAssetCount.set(m.assetId, (maintByAssetCount.get(m.assetId) ?? 0) + 1);
+      if (!assetInfo.has(m.assetId)) {
+        assetInfo.set(m.assetId, {
+          assetTag: m.asset?.assetTag ?? '—',
+          name: m.asset?.name ?? 'Unknown asset',
+          category,
+        });
+      }
     });
     const maintenanceByCategory = [...maintByCategoryMap.entries()].map(([category, count]) => ({ category, count }));
+    const maintenanceByAsset = [...maintByAssetCount.entries()]
+      .map(([id, count]) => ({ id, count, ...assetInfo.get(id)! }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
     // Assets nearing retirement (>4 years old) or in poor condition.
     const fourYearsAgo = new Date(now.getFullYear() - 4, now.getMonth(), now.getDate());
@@ -119,11 +138,62 @@ router.get(
       count,
     }));
 
+    // Assets due for maintenance — driven by the real nextMaintenanceDueDate
+    // (kept separate from the age/condition "nearing retirement" heuristic).
+    const dayMs = 24 * 60 * 60 * 1000;
+    const dueForMaintenance = assets
+      .filter((a) => a.nextMaintenanceDueDate && !['RETIRED', 'DISPOSED'].includes(a.status))
+      .map((a) => ({
+        id: a.id,
+        assetTag: a.assetTag,
+        name: a.name,
+        category: a.category.name,
+        status: a.status,
+        nextMaintenanceDueDate: a.nextMaintenanceDueDate,
+        daysUntilDue: Math.floor((new Date(a.nextMaintenanceDueDate).getTime() - now.getTime()) / dayMs),
+      }))
+      .filter((a) => a.daysUntilDue <= 60) // overdue or due within 60 days
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+      .slice(0, 30);
+
+    // Predictive maintenance risk score: weighted blend of maintenance
+    // frequency (relative to the busiest asset), age, and condition.
+    const maxMaint = Math.max(1, ...maintByAssetCount.values());
+    const conditionWeight: Record<string, number> = { NEW: 0, GOOD: 0.25, FAIR: 0.5, POOR: 0.8, DAMAGED: 1 };
+    const assetsAtRisk = assets
+      .filter((a) => !['RETIRED', 'DISPOSED'].includes(a.status))
+      .map((a) => {
+        const timesMaintained = maintByAssetCount.get(a.id) ?? 0;
+        const freqNorm = timesMaintained / maxMaint; // 0..1, relative to portfolio
+        const ageYears = a.acquisitionDate
+          ? (now.getTime() - new Date(a.acquisitionDate).getTime()) / (365.25 * dayMs)
+          : 0;
+        const ageNorm = Math.min(Math.max(ageYears, 0) / 6, 1); // cap at 6 years
+        const condNorm = conditionWeight[a.condition] ?? 0.25;
+        const riskScore = Math.round((0.4 * freqNorm + 0.3 * ageNorm + 0.3 * condNorm) * 100);
+        return {
+          id: a.id,
+          assetTag: a.assetTag,
+          name: a.name,
+          category: a.category.name,
+          condition: a.condition,
+          status: a.status,
+          timesMaintained,
+          ageYears: Math.round(ageYears * 10) / 10,
+          riskScore,
+        };
+      })
+      .sort((a, b) => b.riskScore - a.riskScore)
+      .slice(0, 15);
+
     res.json({
       mostUsed,
       idle,
       maintenanceByCategory,
+      maintenanceByAsset,
       nearingRetirement,
+      dueForMaintenance,
+      assetsAtRisk,
       departmentAllocation,
       heatmap,
       categoryDistribution,
@@ -134,6 +204,37 @@ router.get(
         totalBookings: bookings.length,
       },
     });
+  })
+);
+
+// Manual override for an asset's next scheduled maintenance date. Lives here
+// (rather than the asset route) because it's a reporting/scheduling concern;
+// managers only. Passing null clears the schedule.
+const maintenanceDueSchema = z.object({
+  nextMaintenanceDueDate: z.coerce.date().nullable(),
+});
+
+router.patch(
+  '/assets/:id/maintenance-due',
+  requireRole('ADMIN', 'ASSET_MANAGER'),
+  asyncHandler(async (req, res) => {
+    const { nextMaintenanceDueDate } = maintenanceDueSchema.parse(req.body);
+    const asset = unwrapMaybe<{ id: string; assetTag: string }>(
+      await supabase.from('Asset').select('id, assetTag').eq('id', req.params.id).single()
+    );
+    if (!asset) throw notFound('Asset not found');
+
+    const iso = nextMaintenanceDueDate ? nextMaintenanceDueDate.toISOString() : null;
+    unwrap(
+      await supabase.from('Asset').update({ nextMaintenanceDueDate: iso }).eq('id', req.params.id).select('id').single()
+    );
+    await logActivity(req.user!, {
+      action: iso ? 'Scheduled next maintenance' : 'Cleared maintenance schedule',
+      entityType: 'Asset',
+      entityId: asset.id,
+      details: `${asset.assetTag}${iso ? ` → ${iso.slice(0, 10)}` : ''}`,
+    });
+    res.json({ ok: true, nextMaintenanceDueDate: iso });
   })
 );
 

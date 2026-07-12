@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Plus, Wrench, Check, X, UserCog, Play, CheckCircle2 } from 'lucide-react';
+import { Plus, Wrench, Check, X, UserCog, Play, CheckCircle2, ImagePlus, Loader2, ScanLine } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
+import { QrScanner } from '../components/QrScanner';
 import { Asset, MaintenanceRequest, MaintenanceStatus } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea } from '../components/ui';
@@ -21,6 +22,8 @@ export default function Maintenance() {
   const [params, setParams] = useSearchParams();
   const [status, setStatus] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [prefill, setPrefill] = useState<string | undefined>(undefined);
   const [modal, setModal] = useState<{ type: 'reject' | 'assign' | 'resolve'; req: MaintenanceRequest } | null>(null);
 
   const query = useMemo(() => (status ? `?status=${status}` : ''), [status]);
@@ -50,7 +53,12 @@ export default function Maintenance() {
       <PageHeader
         title="Maintenance"
         subtitle="Route repairs through an approval workflow before work begins."
-        actions={<Button onClick={() => setShowForm(true)}><Plus className="h-4 w-4" /> Raise Request</Button>}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setShowScanner(true)}><ScanLine className="h-4 w-4" /> Scan</Button>
+            <Button onClick={() => { setPrefill(undefined); setShowForm(true); }}><Plus className="h-4 w-4" /> Raise Request</Button>
+          </>
+        }
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -124,7 +132,19 @@ export default function Maintenance() {
         </div>
       )}
 
-      {showForm && <RaiseModal onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); refetch(); }} />}
+      {showScanner && (
+        <QrScanner
+          onClose={() => setShowScanner(false)}
+          onDetect={(value) => { setShowScanner(false); setPrefill(value); setShowForm(true); }}
+        />
+      )}
+      {showForm && (
+        <RaiseModal
+          prefill={prefill}
+          onClose={() => { setShowForm(false); setPrefill(undefined); }}
+          onSaved={() => { setShowForm(false); setPrefill(undefined); refetch(); }}
+        />
+      )}
       {modal?.type === 'reject' && <RejectModal req={modal.req} onClose={() => setModal(null)} onDone={() => { setModal(null); refetch(); }} />}
       {modal?.type === 'assign' && <AssignModal req={modal.req} onClose={() => setModal(null)} onDone={() => { setModal(null); refetch(); }} />}
       {modal?.type === 'resolve' && <ResolveModal req={modal.req} onClose={() => setModal(null)} onDone={() => { setModal(null); refetch(); }} />}
@@ -154,16 +174,57 @@ function Stepper({ status }: { status: MaintenanceStatus }) {
   );
 }
 
-function RaiseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+/** Resolve a scanned QR value to an asset: our labels encode a detail-page URL
+ * (…/assets/<id>); we also accept a raw asset tag or stored QR token. */
+function resolveScannedAsset(scanned: string, assets: Asset[]): Asset | undefined {
+  const urlMatch = scanned.match(/\/assets\/([^/?#]+)/);
+  if (urlMatch) {
+    const byId = assets.find((a) => a.id === urlMatch[1]);
+    if (byId) return byId;
+  }
+  const v = scanned.trim().toLowerCase();
+  return assets.find((a) => a.assetTag.toLowerCase() === v || (a.qrCode ?? '').toLowerCase() === v);
+}
+
+function RaiseModal({ prefill, onClose, onSaved }: { prefill?: string; onClose: () => void; onSaved: () => void }) {
   const { data: assets } = useApi<Asset[]>('/assets');
   const [assetId, setAssetId] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
   const [description, setDescription] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // When opened from a scan, preselect the matching asset once the list loads.
+  useEffect(() => {
+    if (!prefill || !assets || assetId) return;
+    const match = resolveScannedAsset(prefill, assets);
+    if (match) setAssetId(match.id);
+    else toast.error('Scanned asset was not found in the list');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill, assets]);
+
+  /** Upload the picked image; the server stores it and returns a public URL. */
+  const uploadPhoto = async (file: File) => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post<{ url: string }>('/maintenance/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPhotoUrl(data.url);
+      toast.success('Photo uploaded');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Upload failed'));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = async () => {
     if (!assetId || description.trim().length < 5) { toast.error('Select an asset and describe the issue'); return; }
+    if (uploading) { toast.error('Please wait for the photo to finish uploading'); return; }
     setLoading(true);
     try {
       await api.post('/maintenance', { assetId, priority, description, photoUrl: photoUrl || undefined });
@@ -199,8 +260,28 @@ function RaiseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
         <Field label="Issue description" required>
           <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe the problem in detail..." />
         </Field>
-        <Field label="Photo URL (optional)">
-          <Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." />
+        <Field label="Photo (optional)">
+          {photoUrl ? (
+            <div className="flex items-center gap-3">
+              <img src={photoUrl} alt="Attached" className="h-16 w-16 flex-shrink-0 rounded-lg border border-surface-border object-cover" />
+              <label className={`btn-secondary btn-sm cursor-pointer ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                Replace
+                <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ''; }} />
+              </label>
+              <button type="button" onClick={() => setPhotoUrl('')} className="rounded-md p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600" title="Remove photo">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-surface-border px-3 py-4 text-[13px] text-ink-500 transition-colors hover:bg-surface-muted ${uploading ? 'pointer-events-none opacity-50' : ''}`}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+              {uploading ? 'Uploading…' : 'Upload a photo of the issue'}
+              <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ''; }} />
+            </label>
+          )}
         </Field>
       </div>
     </Modal>

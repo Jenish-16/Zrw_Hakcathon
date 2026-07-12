@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
+import multer from 'multer';
 import { supabase, unwrap, unwrapMaybe } from '../lib/supabase';
 import { asyncHandler } from '../utils/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
@@ -12,6 +14,69 @@ router.use(authenticate);
 
 const requestSelect =
   '*, asset:Asset!MaintenanceRequest_assetId_fkey(id,assetTag,name,status), raisedBy:User!MaintenanceRequest_raisedById_fkey(id,name), approvedBy:User!MaintenanceRequest_approvedById_fkey(id,name)';
+
+// --- Photo upload -----------------------------------------------------------
+// Maintenance photos live in their own dedicated public bucket, separate from
+// asset media, so repair evidence is easy to manage/purge independently. The
+// handler stores one image and returns its public URL for the `photoUrl` field
+// (whose name/shape is unchanged — AssetDetail's history tab still reads it).
+const MAINTENANCE_BUCKET = 'maintenance-photos';
+const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE.includes(file.mimetype)) return cb(null, true);
+    cb(new Error('Only image files (JPEG/PNG/WebP/GIF) are allowed'));
+  },
+});
+
+// Create the dedicated public bucket on first use (service-role can do this),
+// so the feature works without a manual Supabase console step. Memoized; a
+// failure clears the cache so the next upload retries.
+let bucketReady: Promise<void> | null = null;
+function ensureMaintenanceBucket(): Promise<void> {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      const { data } = await supabase.storage.getBucket(MAINTENANCE_BUCKET);
+      if (!data) {
+        const { error } = await supabase.storage.createBucket(MAINTENANCE_BUCKET, {
+          public: true,
+          fileSizeLimit: 10 * 1024 * 1024,
+        });
+        // Ignore "already exists" races between concurrent uploads.
+        if (error && !/exist/i.test(error.message)) throw error;
+      }
+    })().catch((err) => {
+      bucketReady = null;
+      throw err;
+    });
+  }
+  return bucketReady;
+}
+
+// Any authenticated user may raise a request, so any authenticated user may
+// attach a photo (no manager role required here).
+router.post(
+  '/upload',
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) throw badRequest('No file provided (field name must be "file")');
+    await ensureMaintenanceBucket();
+
+    const clean = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+    const path = `photos/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${clean}`;
+    const { error } = await supabase.storage
+      .from(MAINTENANCE_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype });
+    if (error) throw error;
+
+    const { data } = supabase.storage.from(MAINTENANCE_BUCKET).getPublicUrl(path);
+    res.status(201).json({ url: data.publicUrl });
+  })
+);
 
 router.get(
   '/',
@@ -218,9 +283,14 @@ router.post(
   })
 );
 
+// Default preventive-maintenance interval when the resolver doesn't specify one.
+const DEFAULT_MAINTENANCE_INTERVAL_DAYS = 180;
+
 const resolveSchema = z.object({
   resolutionNotes: z.string().trim().min(3, 'Add resolution notes'),
   condition: z.enum(['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED']).optional(),
+  // Configurable interval until the asset's next scheduled maintenance.
+  nextMaintenanceInDays: z.coerce.number().int().min(1).max(3650).optional(),
 });
 
 router.post(
@@ -241,15 +311,18 @@ router.post(
     }
 
     // Sequential writes in place of the former $transaction.
+    const resolvedAt = new Date();
     unwrap(
       await supabase
         .from('MaintenanceRequest')
-        .update({ status: 'RESOLVED', resolutionNotes: data.resolutionNotes, resolvedAt: new Date().toISOString() })
+        .update({ status: 'RESOLVED', resolutionNotes: data.resolutionNotes, resolvedAt: resolvedAt.toISOString() })
         .eq('id', request.id)
         .select()
         .single()
     );
-    // Asset returns to Available on resolution (unless it was retired/disposed meanwhile).
+
+    // Core behavior (unchanged): asset returns to Available on resolution,
+    // unless it was retired/disposed meanwhile.
     if (request.asset.status === 'UNDER_MAINTENANCE') {
       unwrap(
         await supabase
@@ -259,6 +332,21 @@ router.post(
           .select()
           .single()
       );
+    }
+
+    // Schedule the next preventive maintenance (resolved date + interval).
+    // Best-effort: if the nextMaintenanceDueDate column isn't present yet
+    // (additive migration not applied), log and continue instead of failing the
+    // resolve — this keeps the maintenance flow working pre-migration.
+    const intervalDays = data.nextMaintenanceInDays ?? DEFAULT_MAINTENANCE_INTERVAL_DAYS;
+    const nextDue = new Date(resolvedAt.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+    const dueUpdate = await supabase
+      .from('Asset')
+      .update({ nextMaintenanceDueDate: nextDue.toISOString() })
+      .eq('id', request.assetId);
+    if (dueUpdate.error) {
+      // eslint-disable-next-line no-console
+      console.error('[maintenance] could not set nextMaintenanceDueDate — is the schema migration applied?', dueUpdate.error.message);
     }
     await logActivity(req.user!, {
       action: 'Resolved maintenance',

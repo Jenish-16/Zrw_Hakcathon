@@ -22,7 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { Role, Notification } from '../lib/types';
 import { roleLabel } from '../lib/status';
 import { initials, avatarColor, fromNow } from '../lib/format';
-import { api } from '../lib/api';
+import { api, getToken } from '../lib/api';
 
 interface NavItem {
   to: string;
@@ -260,8 +260,22 @@ function NotificationBell() {
 
   useEffect(() => {
     load();
+    // Polling is kept as a resilient fallback — it covers SSE reconnect gaps
+    // and platforms that cut long-lived connections (e.g. serverless).
     const id = setInterval(load, 30000);
     return () => clearInterval(id);
+  }, []);
+
+  // Real-time push via Server-Sent Events. EventSource can't set headers, so
+  // the JWT rides as a query param (verified server-side). On any pushed
+  // notification we refresh the list + unread count; EventSource auto-reconnects
+  // on error, and the poll above covers any window where the stream is down.
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    const es = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(token)}`);
+    es.addEventListener('notification', () => load());
+    return () => es.close();
   }, []);
 
   useEffect(() => {

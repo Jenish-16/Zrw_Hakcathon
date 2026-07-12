@@ -8,11 +8,15 @@ import { Button } from './ui';
 /** Scannable QR for an asset, with copy + PNG download affordances. */
 export function AssetQr({ asset, size = 128 }: { asset: Asset; size?: number }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const value = asset.qrCode ?? asset.assetTag;
+  const label = asset.qrCode ?? asset.assetTag;
+  // The QR encodes a deep link to this asset's detail page, so scanning the
+  // printed label with any phone camera opens the asset directly. The
+  // human-readable token below is still shown/copied for manual search.
+  const value = `${window.location.origin}/assets/${asset.id}`;
 
   const copy = async () => {
-    await navigator.clipboard.writeText(value);
-    toast.success('QR code value copied');
+    await navigator.clipboard.writeText(label);
+    toast.success('Asset tag copied');
   };
 
   const download = () => {
@@ -29,7 +33,7 @@ export function AssetQr({ asset, size = 128 }: { asset: Asset; size?: number }) 
       <div ref={wrapRef} className="rounded-lg border border-surface-border bg-white p-3">
         <QRCodeCanvas value={value} size={size} marginSize={1} />
       </div>
-      <p className="font-mono text-[13px] tabular-nums text-ink-800">{value}</p>
+      <p className="font-mono text-[13px] tabular-nums text-ink-800">{label}</p>
       {!asset.qrCode && (
         <p className="text-xs text-ink-400">No QR code stored yet — showing the asset tag instead.</p>
       )}

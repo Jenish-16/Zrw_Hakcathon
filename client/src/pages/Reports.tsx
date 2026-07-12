@@ -25,6 +25,10 @@ import {
   Flame,
   Moon,
   AlertTriangle,
+  CalendarClock,
+  ShieldAlert,
+  ArrowUpDown,
+  X,
 } from 'lucide-react';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
@@ -36,7 +40,10 @@ interface ReportData {
   mostUsed: { id: string; assetTag: string; name: string; category: string; status: string; timesAllocated: number }[];
   idle: { id: string; assetTag: string; name: string; category: string; status: string; timesAllocated: number }[];
   maintenanceByCategory: { category: string; count: number }[];
+  maintenanceByAsset: { id: string; assetTag: string; name: string; category: string; count: number }[];
   nearingRetirement: { id: string; assetTag: string; name: string; condition: string; acquisitionDate: string | null; category: string }[];
+  dueForMaintenance: { id: string; assetTag: string; name: string; category: string; status: string; nextMaintenanceDueDate: string; daysUntilDue: number }[];
+  assetsAtRisk: { id: string; assetTag: string; name: string; category: string; condition: string; status: string; timesMaintained: number; ageYears: number; riskScore: number }[];
   departmentAllocation: { department: string; count: number }[];
   heatmap: { day: number; hour: number; count: number }[];
   categoryDistribution: { category: string; count: number }[];
@@ -70,7 +77,7 @@ const AXIS_TICK = { fontSize: 11, fill: '#8a8880' } as const;
 const BAR_CURSOR = { fill: 'rgba(25,23,19,0.04)' } as const;
 
 export default function Reports() {
-  const { data, loading } = useApi<ReportData>('/reports/overview');
+  const { data, loading, refetch } = useApi<ReportData>('/reports/overview');
   const [exporting, setExporting] = useState<string | null>(null);
 
   const exportCsv = async (type: 'assets' | 'allocations' | 'maintenance') => {
@@ -239,6 +246,25 @@ export default function Reports() {
           )}
         </ChartCard>
 
+        {/* Maintenance by asset */}
+        <ChartCard icon={<Wrench className="h-4 w-4" />} title="Maintenance frequency by asset" subtitle="Top assets by number of requests">
+          {data.maintenanceByAsset.length === 0 ? (
+            <EmptyState title="No maintenance data" />
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.maintenanceByAsset} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="0" horizontal={false} stroke="#e1e0d9" />
+                  <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" width={130} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                  <Tooltip {...TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+                  <Bar dataKey="count" name="Requests" fill={MEASURE_BLUE} radius={[0, 4, 4, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </ChartCard>
+
         {/* Department allocation */}
         <ChartCard icon={<Building2 className="h-4 w-4" />} title="Department-wise allocation" subtitle="Active allocations by department">
           {data.departmentAllocation.length === 0 ? (
@@ -325,9 +351,10 @@ export default function Reports() {
         <Card className="p-5">
           <div className="mb-2 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-ink-300" />
-            <p className="micro-label">Nearing retirement / due for maintenance</p>
+            <p className="micro-label">Nearing retirement</p>
             <Badge dot={false} className="bg-amber-500/10 text-amber-800 ring-amber-600/25">{data.nearingRetirement.length}</Badge>
           </div>
+          <p className="mb-2 text-xs text-ink-400">Over 4 years old or in poor/damaged condition.</p>
           {data.nearingRetirement.length === 0 ? (
             <EmptyState title="Nothing needs attention" />
           ) : (
@@ -347,7 +374,157 @@ export default function Reports() {
           )}
         </Card>
       </div>
+
+      {/* Due for maintenance (real scheduled date) */}
+      <DueForMaintenance items={data.dueForMaintenance} onChange={refetch} />
+
+      {/* Predictive maintenance risk */}
+      <AssetsAtRisk items={data.assetsAtRisk} onChange={refetch} />
     </div>
+  );
+}
+
+/** Inline editor for an asset's next-maintenance date (managers). */
+function MaintenanceDateInput({ assetId, value, onSaved }: { assetId: string; value: string | null; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const save = async (v: string | null) => {
+    setSaving(true);
+    try {
+      await api.patch(`/reports/assets/${assetId}/maintenance-due`, { nextMaintenanceDueDate: v });
+      toast.success(v ? 'Maintenance scheduled' : 'Schedule cleared');
+      onSaved();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="date"
+        value={value ? value.slice(0, 10) : ''}
+        disabled={saving}
+        onChange={(e) => save(e.target.value || null)}
+        className="rounded-md border border-ink-200 bg-white px-2 py-1 font-mono text-xs text-ink-700 outline-none transition-colors focus:border-accent-500"
+      />
+      {value && (
+        <button onClick={() => save(null)} disabled={saving} title="Clear schedule" className="rounded p-1 text-ink-400 transition-colors hover:text-danger-600">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DueForMaintenance({ items, onChange }: { items: ReportData['dueForMaintenance']; onChange: () => void }) {
+  return (
+    <Card className="mt-4 p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <CalendarClock className="h-4 w-4 text-ink-300" />
+        <p className="micro-label">Due for maintenance</p>
+        <Badge dot={false} className="bg-amber-500/10 text-amber-800 ring-amber-600/25">{items.length}</Badge>
+      </div>
+      <p className="mb-3 text-xs text-ink-400">Driven by each asset's scheduled next-maintenance date — overdue or due within 60 days. Reschedule inline.</p>
+      {items.length === 0 ? (
+        <EmptyState icon={<CalendarClock className="h-6 w-6" />} title="Nothing scheduled soon" subtitle="Resolving a maintenance request sets the next due date automatically." />
+      ) : (
+        <ul className="divide-y divide-surface-border">
+          {items.map((a) => {
+            const overdue = a.daysUntilDue < 0;
+            return (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-ink-800">{a.name}</p>
+                  <p className="font-mono text-xs text-ink-400">{a.assetTag} · {a.category} · due {fmtDate(a.nextMaintenanceDueDate)}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge dot={false} className={overdue ? 'bg-danger-500/10 text-danger-700 ring-danger-600/25' : 'bg-amber-500/10 text-amber-800 ring-amber-600/25'}>
+                    {overdue ? `${Math.abs(a.daysUntilDue)}d overdue` : a.daysUntilDue === 0 ? 'Due today' : `in ${a.daysUntilDue}d`}
+                  </Badge>
+                  <MaintenanceDateInput assetId={a.id} value={a.nextMaintenanceDueDate} onSaved={onChange} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+type RiskSortKey = 'riskScore' | 'timesMaintained' | 'ageYears' | 'name';
+
+function AssetsAtRisk({ items, onChange }: { items: ReportData['assetsAtRisk']; onChange: () => void }) {
+  const [sort, setSort] = useState<{ key: RiskSortKey; dir: 'asc' | 'desc' }>({ key: 'riskScore', dir: 'desc' });
+  const sorted = [...items].sort((a, b) => {
+    const mult = sort.dir === 'asc' ? 1 : -1;
+    if (sort.key === 'name') return mult * a.name.localeCompare(b.name);
+    return mult * (a[sort.key] - b[sort.key]);
+  });
+  const toggle = (key: RiskSortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' }));
+
+  const riskStyle = (score: number) =>
+    score >= 66 ? 'bg-danger-500/10 text-danger-700 ring-danger-600/25' : score >= 40 ? 'bg-amber-500/10 text-amber-800 ring-amber-600/25' : 'bg-emerald-500/10 text-emerald-800 ring-emerald-600/20';
+
+  const SortHead = ({ label, k, right }: { label: string; k: RiskSortKey; right?: boolean }) => (
+    <th className={`table-head ${right ? 'text-right' : ''}`}>
+      <button onClick={() => toggle(k)} className={`inline-flex items-center gap-1 transition-colors hover:text-ink-700 ${sort.key === k ? 'text-ink-700' : ''}`}>
+        {label} <ArrowUpDown className="h-3 w-3" />
+      </button>
+    </th>
+  );
+
+  return (
+    <Card className="mt-4 overflow-hidden p-0">
+      <div className="flex items-center gap-2 p-5 pb-3">
+        <ShieldAlert className="h-4 w-4 text-ink-300" />
+        <p className="micro-label">Assets at risk</p>
+        <span className="text-xs text-ink-400">Predictive score: maintenance frequency (40%) + age (30%) + condition (30%)</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="p-5 pt-0"><EmptyState icon={<ShieldAlert className="h-6 w-6" />} title="No assets to score" /></div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px]">
+            <thead>
+              <tr>
+                <SortHead label="Asset" k="name" />
+                <th className="table-head">Category</th>
+                <SortHead label="Maint." k="timesMaintained" right />
+                <SortHead label="Age (yrs)" k="ageYears" right />
+                <th className="table-head">Condition</th>
+                <SortHead label="Risk" k="riskScore" right />
+                <th className="table-head text-right">Schedule maintenance</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {sorted.map((a) => (
+                <tr key={a.id} className="hover:bg-surface-muted">
+                  <td className="table-cell">
+                    <p className="text-[13px] font-medium text-ink-800">{a.name}</p>
+                    <p className="font-mono text-xs text-ink-400">{a.assetTag}</p>
+                  </td>
+                  <td className="table-cell text-ink-600">{a.category}</td>
+                  <td className="table-cell text-right font-mono tabular-nums text-ink-600">{a.timesMaintained}</td>
+                  <td className="table-cell text-right font-mono tabular-nums text-ink-600">{a.ageYears}</td>
+                  <td className="table-cell"><Badge className={conditionStyle[a.condition] ?? 'bg-ink-500/10 text-ink-600 ring-ink-400/25'}>{titleCase(a.condition)}</Badge></td>
+                  <td className="table-cell text-right">
+                    <Badge dot={false} className={riskStyle(a.riskScore)}>{a.riskScore}</Badge>
+                  </td>
+                  <td className="table-cell">
+                    <div className="flex justify-end">
+                      <MaintenanceDateInput assetId={a.id} value={null} onSaved={onChange} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 
