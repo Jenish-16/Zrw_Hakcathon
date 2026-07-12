@@ -36,6 +36,7 @@ type ActionKey = 'allocate' | 'return' | 'reserve' | 'available' | 'repair' | 'l
 
 type ActionMeta = {
   label: string;
+  short: string; // compact label shown on the quick-action chip
   icon: JSX.Element;
   danger?: boolean;
   status?: AssetStatus; // set for status-transition actions
@@ -45,35 +46,35 @@ type ActionMeta = {
 };
 
 const ACTION_META: Record<ActionKey, ActionMeta> = {
-  allocate: { label: 'Allocate', icon: <HandCoins className="h-4 w-4" /> },
-  return: { label: 'Return', icon: <Undo2 className="h-4 w-4" /> },
+  allocate: { label: 'Allocate', short: 'Allocate', icon: <HandCoins className="h-4 w-4" /> },
+  return: { label: 'Return', short: 'Return', icon: <Undo2 className="h-4 w-4" /> },
   reserve: {
-    label: 'Reserve', icon: <BookmarkPlus className="h-4 w-4" />, status: 'RESERVED',
+    label: 'Reserve', short: 'Reserve', icon: <BookmarkPlus className="h-4 w-4" />, status: 'RESERVED',
     confirmTitle: 'Reserve asset', confirmBody: 'Hold this asset as reserved so it is not allocated to anyone else.',
     successMsg: 'Asset reserved',
   },
   available: {
-    label: 'Mark available', icon: <PackageCheck className="h-4 w-4" />, status: 'AVAILABLE',
+    label: 'Mark available', short: 'Available', icon: <PackageCheck className="h-4 w-4" />, status: 'AVAILABLE',
     confirmTitle: 'Mark available', confirmBody: 'Return this asset to the available pool so it can be allocated again.',
     successMsg: 'Asset marked available',
   },
   repair: {
-    label: 'Send for repair', icon: <Wrench className="h-4 w-4" />, status: 'UNDER_MAINTENANCE',
+    label: 'Send for repair', short: 'Repair', icon: <Wrench className="h-4 w-4" />, status: 'UNDER_MAINTENANCE',
     confirmTitle: 'Send for repair', confirmBody: 'Mark this asset as under maintenance while it is being repaired.',
     successMsg: 'Asset sent for repair',
   },
   lost: {
-    label: 'Mark lost', icon: <HelpCircle className="h-4 w-4" />, status: 'LOST', danger: true,
+    label: 'Mark lost', short: 'Lost', icon: <HelpCircle className="h-4 w-4" />, status: 'LOST', danger: true,
     confirmTitle: 'Mark asset as lost', confirmBody: 'Flag this asset as lost. You can mark it available again if it is found.',
     successMsg: 'Asset marked lost',
   },
   retire: {
-    label: 'Retire', icon: <Archive className="h-4 w-4" />, status: 'RETIRED',
+    label: 'Retire', short: 'Retire', icon: <Archive className="h-4 w-4" />, status: 'RETIRED',
     confirmTitle: 'Retire asset', confirmBody: 'Take this asset out of active service. It can still be disposed later.',
     successMsg: 'Asset retired',
   },
   dispose: {
-    label: 'Dispose', icon: <Trash2 className="h-4 w-4" />, status: 'DISPOSED', danger: true,
+    label: 'Dispose', short: 'Dispose', icon: <Trash2 className="h-4 w-4" />, status: 'DISPOSED', danger: true,
     confirmTitle: 'Dispose asset', confirmBody: 'Permanently retire this asset from the inventory. This is the end of its lifecycle.',
     successMsg: 'Asset disposed',
   },
@@ -209,13 +210,14 @@ export default function AssetDetail() {
                         onClick={() => runAction(key)}
                         title={meta.label}
                         aria-label={meta.label}
-                        className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                        className={`flex w-[4.25rem] flex-col items-center gap-1.5 rounded-lg border px-1 py-2 transition-colors ${
                           meta.danger
                             ? 'border-red-600/20 text-red-600 hover:bg-red-500/10'
                             : 'border-surface-border text-ink-500 hover:bg-surface-muted hover:text-ink-800'
                         }`}
                       >
                         {meta.icon}
+                        <span className="text-[11px] font-medium leading-none">{meta.short}</span>
                       </button>
                     );
                   })}
