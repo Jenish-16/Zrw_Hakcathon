@@ -16,18 +16,30 @@ import {
   Archive,
   Trash2,
   HelpCircle,
+  Pencil,
   X,
 } from 'lucide-react';
 import { AssetQr } from '../components/AssetQr';
+import { EditAssetDialog } from './Assets';
 import { useApi } from '../lib/useApi';
 import { api, errorMessage } from '../lib/api';
-import { Asset, AssetStatus, Allocation, User, Department } from '../lib/types';
+import { Asset, AssetStatus, Allocation, User, Department, ActivityLog } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, Card, EmptyState, Select, Spinner, Tabs, Field, Input, Textarea } from '../components/ui';
 import { assetStatusStyle, conditionStyle, maintenanceStatusStyle } from '../lib/status';
 import { titleCase, fmtDate, fmtDateTime, fmtCurrency, initials, avatarColor } from '../lib/format';
 
 const CONDITIONS: Asset['condition'][] = ['NEW', 'GOOD', 'FAIR', 'POOR', 'DAMAGED'];
+
+// Turn a logged status-change detail ("AF-0007: AVAILABLE → RESERVED (note)")
+// into a timeline-friendly line: drops the redundant asset tag and title-cases
+// the status tokens, leaving any note intact.
+function statusEventText(details: string | null | undefined, assetTag: string): string {
+  if (!details) return 'Status changed';
+  const body = details.replace(new RegExp(`^${assetTag}:\\s*`), '');
+  const prettied = body.replace(/[A-Z][A-Z_]{2,}/g, (m) => titleCase(m));
+  return `Status: ${prettied}`;
+}
 
 // --- Quick actions ---------------------------------------------------------
 // Each contextual action the admin/manager can take from the identity card.
@@ -99,11 +111,21 @@ export default function AssetDetail() {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
   const { data: asset, loading, refetch } = useApi<Asset>(`/assets/${id}`, [id]);
+  // Status-change history lives in the activity log (allocate/return/maintenance
+  // are already captured as structured records below).
+  const { data: activity, refetch: refetchActivity } = useApi<ActivityLog[]>(
+    `/activity?entityType=Asset&entityId=${id}`,
+    [id],
+  );
   const [tab, setTab] = useState('overview');
   const [dialogAction, setDialogAction] = useState<ActionKey | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   if (loading || !asset) return <Spinner label="Loading asset..." />;
+
+  // Refresh both the asset and its activity log after a quick action.
+  const refresh = () => { refetch(); refetchActivity(); };
 
   const canManage = hasRole('ADMIN', 'ASSET_MANAGER');
   const allocations = asset.allocations ?? [];
@@ -122,6 +144,7 @@ export default function AssetDetail() {
     return: 'bg-sky-500',
     maint: 'bg-amber-500',
     transfer: 'bg-violet-500',
+    status: 'bg-slate-500',
   };
   const timeline = [
     ...(asset.createdAt ? [{ t: asset.createdAt, text: 'Registered', kind: 'register' as const }] : []),
@@ -139,15 +162,27 @@ export default function AssetDetail() {
       text: `Transfer ${titleCase(tr.status)}${tr.toUser ? ` to ${tr.toUser.name}` : ''}`,
       kind: 'transfer' as const,
     })),
+    // Manual status changes (reserve/repair/retire/dispose/lost/available) are
+    // only recorded in the activity log, so surface them here too.
+    ...(activity ?? [])
+      .filter((a) => a.action === 'Changed asset status')
+      .map((a) => ({ t: a.createdAt, text: statusEventText(a.details, asset.assetTag), kind: 'status' as const })),
   ]
     .filter((e) => e.t)
     .sort((a, b) => new Date(b.t).getTime() - new Date(a.t).getTime());
 
   return (
     <div className="animate-fade-in">
-      <button onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1.5 text-[13px] font-medium text-ink-500 transition-colors hover:text-ink-700">
-        <ArrowLeft className="h-4 w-4" /> Back
-      </button>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-[13px] font-medium text-ink-500 transition-colors hover:text-ink-700">
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        {canManage && (
+          <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-4 w-4" /> Edit asset
+          </Button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: identity card */}
@@ -360,7 +395,15 @@ export default function AssetDetail() {
           action={dialogAction}
           activeAllocation={activeAllocation}
           onClose={() => setDialogAction(null)}
-          onSaved={() => { setDialogAction(null); refetch(); }}
+          onSaved={() => { setDialogAction(null); refresh(); }}
+        />
+      )}
+
+      {editOpen && (
+        <EditAssetDialog
+          asset={asset}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); refresh(); }}
         />
       )}
 

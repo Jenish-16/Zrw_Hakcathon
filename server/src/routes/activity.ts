@@ -11,13 +11,14 @@ router.use(authenticate);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { entityType, search } = req.query as Record<string, string>;
+    const { entityType, entityId, search } = req.query as Record<string, string>;
     const user = req.user!;
     let q = supabase.from('ActivityLog').select('*');
     if (!['ADMIN', 'ASSET_MANAGER'].includes(user.role)) {
       q = q.eq('userId', user.id);
     }
     if (entityType) q = q.eq('entityType', entityType);
+    if (entityId) q = q.eq('entityId', entityId);
     if (search) {
       q = q.or(
         `action.ilike.%${search}%,details.ilike.%${search}%,actorName.ilike.%${search}%`

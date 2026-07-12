@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -10,12 +10,18 @@ import { errorMessage } from '../lib/api';
 export default function Login() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  // Where to go after auth: the ?redirect target (e.g. a scanned asset link),
+  // guarded to internal paths only, otherwise the dashboard.
+  const redirect = params.get('redirect');
+  const dest = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+
+  if (user) return <Navigate to={dest} replace />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +29,7 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success('Welcome back');
-      navigate('/dashboard');
+      navigate(dest, { replace: true });
     } catch (err) {
       toast.error(errorMessage(err, 'Login failed'));
     } finally {
@@ -92,7 +98,7 @@ export default function Login() {
 
       <p className="mt-5 text-center text-[13px] text-ink-500">
         Don't have an account?{' '}
-        <Link to="/signup" className="font-medium text-accent-600 hover:text-accent-700">
+        <Link to={`/signup${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-accent-600 hover:text-accent-700">
           Create one
         </Link>
       </p>

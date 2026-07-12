@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { User, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -10,12 +10,18 @@ import { errorMessage } from '../lib/api';
 export default function Signup() {
   const { signup, user } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  // Same post-auth destination handling as Login: honour ?redirect (internal
+  // paths only), else the dashboard.
+  const redirect = params.get('redirect');
+  const dest = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+
+  if (user) return <Navigate to={dest} replace />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +29,7 @@ export default function Signup() {
     try {
       await signup(name, email, password);
       toast.success('Account created. Welcome to AssetFlow.');
-      navigate('/dashboard');
+      navigate(dest, { replace: true });
     } catch (err) {
       toast.error(errorMessage(err, 'Signup failed'));
     } finally {
@@ -66,7 +72,7 @@ export default function Signup() {
 
       <p className="mt-5 text-center text-[13px] text-ink-500">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-accent-600 hover:text-accent-700">
+        <Link to={`/login${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-accent-600 hover:text-accent-700">
           Sign in
         </Link>
       </p>

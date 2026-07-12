@@ -613,3 +613,23 @@ export function RegisterAssetDialog({ onClose, onCreated }: { onClose: () => voi
     />
   );
 }
+
+/**
+ * Full-screen "Edit asset" dialog that fetches its own category/department
+ * options, so it can be opened from anywhere (e.g. the asset detail page)
+ * without navigating back to the Assets list first.
+ */
+export function EditAssetDialog({ asset, onClose, onSaved }: { asset: Asset; onClose: () => void; onSaved: () => void }) {
+  const { data: categories } = useApi<Category[]>('/categories');
+  const { data: departments } = useApi<Department[]>('/departments');
+  return (
+    <AssetFormModal
+      asset={asset}
+      categories={categories ?? []}
+      departments={departments ?? []}
+      onClose={onClose}
+      onSaved={onSaved}
+      onCreatedAnother={() => {}}
+    />
+  );
+}

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Role } from '../lib/types';
 import { Layout } from './Layout';
@@ -7,6 +7,7 @@ import { Spinner } from './ui';
 
 export function ProtectedRoute({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -15,7 +16,13 @@ export function ProtectedRoute({ children, roles }: { children: ReactNode; roles
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    // Remember where the user was headed (e.g. an asset deep link from a scanned
+    // QR) so we can return them there after they log in / sign up.
+    const target = location.pathname + location.search + location.hash;
+    const to = target && target !== '/dashboard' ? `/login?redirect=${encodeURIComponent(target)}` : '/login';
+    return <Navigate to={to} replace />;
+  }
 
   if (roles && !roles.includes(user.role)) {
     return (
