@@ -171,6 +171,7 @@ export default function Assets() {
           departments={departments ?? []}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); refetch(); }}
+          onCreatedAnother={() => refetch()}
         />
       )}
 
@@ -313,13 +314,29 @@ function AssetFormModal({
   departments,
   onClose,
   onSaved,
+  onCreatedAnother,
 }: {
   asset: Asset | null;
   categories: Category[];
   departments: Department[];
   onClose: () => void;
   onSaved: () => void;
+  onCreatedAnother: () => void;
 }) {
+  const navigate = useNavigate();
+  const emptyForm = {
+    name: '',
+    categoryId: '',
+    serialNumber: '',
+    acquisitionDate: '',
+    acquisitionCost: '',
+    condition: 'GOOD',
+    location: '',
+    departmentId: '',
+    isBookable: false,
+    photoUrl: '',
+    documentUrl: '',
+  };
   const [form, setForm] = useState({
     name: asset?.name ?? '',
     categoryId: asset?.categoryId ?? '',
@@ -334,11 +351,20 @@ function AssetFormModal({
     documentUrl: asset?.documentUrl ?? '',
   });
   const [customData, setCustomData] = useState<Record<string, unknown>>((asset?.customData as Record<string, unknown>) ?? {});
-  const [loading, setLoading] = useState(false);
+  // Which save action is in flight, so the right button shows the spinner.
+  const [pending, setPending] = useState<null | 'edit' | 'another' | 'redirect'>(null);
   const [uploading, setUploading] = useState<'photo' | 'doc' | null>(null);
+  const busy = pending !== null;
 
   const selectedCategory = categories.find((c) => c.id === form.categoryId);
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Close on Escape, unless a save is in flight.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [busy, onClose]);
 
   /** Upload a picked file to the server, which stores it in Supabase Storage. */
   const uploadFile = async (file: File, kind: 'photo' | 'doc') => {
@@ -358,12 +384,24 @@ function AssetFormModal({
     }
   };
 
-  const submit = async () => {
-    if (!form.name || !form.categoryId) {
+  const resetForm = () => {
+    setForm(emptyForm);
+    setCustomData({});
+    document.getElementById('asset-form-body')?.scrollTo({ top: 0 });
+  };
+
+  // 'edit' saves changes to an existing asset; 'another' creates then clears the
+  // form to register the next one; 'redirect' creates then opens the new asset.
+  const save = async (mode: 'edit' | 'another' | 'redirect') => {
+    if (!form.name.trim() || !form.categoryId) {
       toast.error('Name and category are required');
       return;
     }
-    setLoading(true);
+    if (uploading) {
+      toast.error('Please wait for the upload to finish');
+      return;
+    }
+    setPending(mode);
     try {
       const payload = {
         name: form.name,
@@ -379,35 +417,55 @@ function AssetFormModal({
         documentUrl: form.documentUrl || null,
         customData: Object.keys(customData).length ? customData : null,
       };
-      if (asset) {
+      if (mode === 'edit' && asset) {
         await api.patch(`/assets/${asset.id}`, payload);
         toast.success('Asset updated');
-      } else {
-        await api.post('/assets', payload);
-        toast.success('Asset registered');
+        onSaved();
+        return;
       }
-      onSaved();
+      const { data } = await api.post<Asset>('/assets', payload);
+      toast.success('Asset registered');
+      if (mode === 'redirect') {
+        navigate(`/assets/${data.id}`);
+      } else {
+        onCreatedAnother();
+        resetForm();
+      }
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
-      setLoading(false);
+      setPending(null);
     }
   };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={asset ? 'Edit asset' : 'Register new asset'}
-      subtitle={asset ? asset.assetTag : 'A unique Asset Tag (AF-XXXX) is generated automatically.'}
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={loading}>{asset ? 'Save changes' : 'Register asset'}</Button>
-        </>
-      }
-    >
+    <div className="fixed inset-0 z-50 flex flex-col bg-paper">
+      {/* Top navbar: title on the left, actions on the right */}
+      <header className="flex h-14 flex-shrink-0 items-center justify-between gap-3 border-b border-surface-border bg-surface px-4 sm:px-6">
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold tracking-tight text-ink-900">{asset ? 'Edit asset' : 'Register new asset'}</h2>
+          <p className="truncate text-xs text-ink-400">{asset ? asset.assetTag : 'A unique Asset Tag (AF-XXXX) is generated automatically.'}</p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          {asset ? (
+            <Button onClick={() => save('edit')} loading={pending === 'edit'}>Save changes</Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => save('another')} loading={pending === 'another'} disabled={busy && pending !== 'another'}>
+                Create &amp; add another
+              </Button>
+              <Button onClick={() => save('redirect')} loading={pending === 'redirect'} disabled={busy && pending !== 'redirect'}>
+                Create
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* Scrollable body */}
+      <div id="asset-form-body" className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <Field label="Asset name" required>
@@ -530,6 +588,8 @@ function AssetFormModal({
           </label>
         </div>
       </div>
-    </Modal>
+        </div>
+      </div>
+    </div>
   );
 }

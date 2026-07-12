@@ -37,9 +37,9 @@ export function AssetQr({ asset, size = 128 }: { asset: Asset; size?: number }) 
       {!asset.qrCode && (
         <p className="text-xs text-ink-400">No QR code stored yet — showing the asset tag instead.</p>
       )}
-      <div className="flex gap-2">
-        <Button variant="secondary" size="sm" onClick={copy}><Copy className="h-3.5 w-3.5" /> Copy value</Button>
-        <Button variant="secondary" size="sm" onClick={download}><Download className="h-3.5 w-3.5" /> Download PNG</Button>
+      <div className="flex w-full flex-wrap justify-center gap-2">
+        <Button variant="secondary" size="sm" onClick={copy} className="flex-1 whitespace-nowrap"><Copy className="h-3.5 w-3.5" /> Copy value</Button>
+        <Button variant="secondary" size="sm" onClick={download} className="flex-1 whitespace-nowrap"><Download className="h-3.5 w-3.5" /> Download PNG</Button>
       </div>
     </div>
   );

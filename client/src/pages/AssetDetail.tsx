@@ -199,19 +199,24 @@ export default function AssetDetail() {
               {quickActions.length === 0 ? (
                 <p className="text-xs text-ink-400">No further actions — this asset has been disposed.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {quickActions.map((key) => {
                     const meta = ACTION_META[key];
                     return (
-                      <Button
+                      <button
                         key={key}
-                        variant={meta.danger ? 'danger' : 'secondary'}
-                        size="sm"
-                        className="justify-center"
+                        type="button"
                         onClick={() => runAction(key)}
+                        title={meta.label}
+                        aria-label={meta.label}
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                          meta.danger
+                            ? 'border-red-600/20 text-red-600 hover:bg-red-500/10'
+                            : 'border-surface-border text-ink-500 hover:bg-surface-muted hover:text-ink-800'
+                        }`}
                       >
-                        {meta.icon} {meta.label}
-                      </Button>
+                        {meta.icon}
+                      </button>
                     );
                   })}
                 </div>
